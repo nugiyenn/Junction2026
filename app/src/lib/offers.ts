@@ -1,4 +1,4 @@
-import type { Candidate, Offer, OfferKind, OfferLine, PurchaseRequest } from '../types/index.ts';
+import type { Candidate, Offer, OfferKind, OfferLine, OfferPreference, PurchaseRequest } from '../types/index.ts';
 
 // Pure: no database, no API calls. Turns priced candidates into the ways the request can be filled.
 
@@ -142,4 +142,14 @@ export function buildOffers(candidates: Candidate[], request: PurchaseRequest): 
 
   notes.push(`Nothing can deliver ${request.amount}${unit} on ${request.deliveryDate}, not even split or substituted.`);
   return { offers: [], notes };
+}
+
+/**
+ * Puts the offer the buyer prefers first, so it is the one held as a quote. Other offers keep their order.
+ * If no offer earned the preferred kind (a split or a substitute, say), the order is unchanged.
+ */
+export function applyPreference(offers: Offer[], preference: OfferPreference): Offer[] {
+  const preferred = offers.find((o) => o.kinds.includes(preference));
+  if (!preferred) return offers;
+  return [preferred, ...offers.filter((o) => o !== preferred)];
 }

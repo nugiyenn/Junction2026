@@ -9,7 +9,9 @@ import { getVerifications } from '@/lib/verify';
 import { getAvailability, getPrices } from '@/lib/valio';
 import type {
   Mandate,
+  OfferPreference,
   Order,
+  PolicyDecision,
   OrderStatus,
   Product,
   Quote,
@@ -40,6 +42,8 @@ interface MandateRow {
   blocked_allergens: string[];
   min_delivery_reliability: number | null;
   require_confirmed_stock: boolean;
+  max_co2_per_kg: number | null;
+  preferred_offer: OfferPreference;
 }
 
 const toMandate = (r: MandateRow): Mandate => ({
@@ -51,6 +55,8 @@ const toMandate = (r: MandateRow): Mandate => ({
   blockedAllergens: r.blocked_allergens,
   minDeliveryReliability: r.min_delivery_reliability,
   requireConfirmedStock: r.require_confirmed_stock,
+  maxCo2PerKg: r.max_co2_per_kg,
+  preferredOffer: r.preferred_offer,
 });
 
 export async function getMandate(id: string): Promise<Mandate> {
@@ -65,7 +71,7 @@ export async function listMandates(): Promise<Mandate[]> {
 }
 
 export type MandateChanges = Partial<
-  Pick<Mandate, 'autoApproveLimitEur' | 'maxOrderEur' | 'blockedAllergens' | 'minDeliveryReliability' | 'requireConfirmedStock'>
+  Pick<Mandate, 'autoApproveLimitEur' | 'maxOrderEur' | 'blockedAllergens' | 'minDeliveryReliability' | 'requireConfirmedStock' | 'maxCo2PerKg' | 'preferredOffer'>
 >;
 
 /** The buyer edits what the agent may do. Takes effect on the next order; held quotes are re-judged at order time. */
@@ -78,9 +84,18 @@ export async function updateMandate(id: string, changes: MandateChanges, changed
 
   const { rows } = await getPool().query<MandateRow>(
     `UPDATE mandates SET auto_approve_limit_eur = $2, max_order_eur = $3, blocked_allergens = $4,
-       min_delivery_reliability = $5, require_confirmed_stock = $6
+       min_delivery_reliability = $5, require_confirmed_stock = $6, max_co2_per_kg = $7, preferred_offer = $8
      WHERE id = $1 RETURNING *`,
-    [id, next.autoApproveLimitEur, next.maxOrderEur, JSON.stringify(next.blockedAllergens), next.minDeliveryReliability, next.requireConfirmedStock]
+    [
+      id,
+      next.autoApproveLimitEur,
+      next.maxOrderEur,
+      JSON.stringify(next.blockedAllergens),
+      next.minDeliveryReliability,
+      next.requireConfirmedStock,
+      next.maxCo2PerKg,
+      next.preferredOffer,
+    ]
   );
   const mandate = toMandate(rows[0]);
 
@@ -345,6 +360,22 @@ const toOrder = (r: OrderRow): Order => ({
   decisionNote: r.decision_note,
 });
 
+/** Applies the buyer's mandate to a quote. Reads stored web checks only: no live call while an order is judged. */
+async function judgeQuote(quote: Quote): Promise<{ mandate: Mandate; decision: PolicyDecision }> {
+  const lineIds = quote.lines.map((l) => l.productId);
+  const [mandate, products, verifications] = await Promise.all([
+    getMandate(quote.mandateId),
+    getProductsByIds(lineIds),
+    getVerifications(lineIds),
+  ]);
+  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications) };
+}
+
+/** What the mandate would decide if this quote were ordered now. The same rules as placeOrder; writes nothing. */
+export async function previewPolicy(quote: Quote): Promise<PolicyDecision> {
+  return (await judgeQuote(quote)).decision;
+}
+
 /**
  * Commits to a quote at its held prices. The mandate decides whether the order is confirmed at once,
  * waits for a human, or is rejected; the returned order's `status` and `policyReasons` say which.
@@ -367,13 +398,7 @@ export async function placeOrder(quoteId: string): Promise<Order> {
     throw new HttpError(409, 'The quote is unsigned, or its price or quantities no longer match Valio\'s signature. Request a new quote.');
   }
 
-  const lineIds = quote.lines.map((l) => l.productId);
-  const [mandate, products, verifications] = await Promise.all([
-    getMandate(quote.mandateId),
-    getProductsByIds(lineIds),
-    getVerifications(lineIds), // stored live-web checks only: no live call while an order is judged
-  ]);
-  const decision = evaluateOrder(mandate, quote, products, verifications);
+  const { mandate, decision } = await judgeQuote(quote);
   const status: OrderStatus = { auto_approve: 'confirmed', needs_approval: 'pending_approval', reject: 'rejected' }[
     decision.outcome
   ] as OrderStatus;

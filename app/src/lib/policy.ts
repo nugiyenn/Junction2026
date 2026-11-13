@@ -18,6 +18,7 @@ export const hasNoAllergenData = (p: Product) =>
  *   disagreement with the catalog -> human; a source confirming "free from" every blocked allergen clears
  *   the unverified rule above
  * - delivery reliability below the mandate's minimum -> human
+ * - carbon footprint above the mandate's maximum -> human (unknown footprint passes, like unknown reliability)
  * - Terminal stock (unconfirmed) when the mandate requires confirmed stock -> human
  * - a line that substitutes what the buyer asked for -> human
  */
@@ -88,6 +89,14 @@ export function evaluateOrder(
         'needs_approval',
         `${line.name} was delivered in full only ${Math.round(product.deliveryReliability * 100)}% of the time, ` +
           `below the mandate's ${Math.round(mandate.minDeliveryReliability * 100)}%.`
+      );
+    }
+
+    if (mandate.maxCo2PerKg !== null && product.co2PerKg !== null && product.co2PerKg > mandate.maxCo2PerKg) {
+      raise(
+        'needs_approval',
+        `${line.name} has a carbon footprint of ${product.co2PerKg} kg CO2-eq per kg, ` +
+          `above the mandate's ${mandate.maxCo2PerKg}.`
       );
     }
 

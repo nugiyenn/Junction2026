@@ -5,8 +5,8 @@ import { getProductsByIds, searchProducts } from '@/lib/catalog';
 import { exposeQuote } from '@/lib/exposure';
 import { HttpError } from '@/lib/http';
 import { runOpenModelStructured } from '@/lib/llm';
-import { buildOffers } from '@/lib/offers';
-import { buildQuoteLine, createQuote, getMandate } from '@/lib/purchasing';
+import { applyPreference, buildOffers } from '@/lib/offers';
+import { buildQuoteLine, createQuote, getMandate, previewPolicy } from '@/lib/purchasing';
 import { getAvailability, getPrices } from '@/lib/valio';
 import type { Candidate, Mandate, Offer, Product, ProductSearchResult, PurchaseRequest, RequestResult } from '@/types';
 
@@ -255,7 +255,8 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
       built = buildOffers(candidates, interpreted);
     }
   }
-  const { offers, notes } = built;
+  const { notes } = built;
+  const offers = applyPreference(built.offers, mandate.preferredOffer);
   explain(candidates, offers, interpreted);
 
   const best = offers[0] ?? null;
@@ -271,7 +272,7 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
       `${excludedByAllergens ? `The mandate hid ${excludedByAllergens} matching products with blocked allergens. ` : ''}` +
       `Searched ${found.length} catalog products${semantic ? '' : ' (keyword search only: semantic search unavailable)'}, ${picked.model} kept ${shortlist.length} that match, priced those only. ` +
       (best
-        ? `${offers.length} offer(s); default is "${best.label}" at €${best.total.toFixed(2)}. ${notes.join(' ')}`
+        ? `${offers.length} offer(s); default is "${best.label}" at €${best.total.toFixed(2)}${best.kinds.includes(mandate.preferredOffer) ? ` (the mandate prefers ${mandate.preferredOffer.replace('_', ' ')})` : ''}. ${notes.join(' ')}`
         : notes.join(' ')),
     data: { interpreted, candidateIds: candidates.map((c) => c.productId), offers: offers.map((o) => ({ id: o.id, kinds: o.kinds, total: o.total })) },
   });
@@ -293,6 +294,7 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
     candidates: candidates.map((c) => ({ ...c, availableAmount: null })),
     offers,
     quote: quote ? exposeQuote(quote) : null,
+    policy: quote ? await previewPolicy(quote) : null,
     notes,
   };
 }

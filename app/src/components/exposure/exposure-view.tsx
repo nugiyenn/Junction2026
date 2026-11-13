@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { cn } from 'cn';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { call, eur } from '@/components/flow/api';
+import { Page, Panel, Pill } from '@/components/page';
 import type { ExposedQuote, Quote } from '@/types';
 
 interface Views {
@@ -13,13 +13,14 @@ interface Views {
   signatureValid: boolean;
 }
 
+/** The tools an agent can call over MCP. Approving an order and editing a mandate are deliberately absent. */
+const TOOLS = ['search_products', 'request_offers', 'create_quote', 'place_order', 'get_order_status', 'verify_product', 'get_mandate'];
+
 function Row({ label, value, withheld }: { label: string; value?: React.ReactNode; withheld?: boolean }) {
   return (
     <>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className={withheld ? 'italic text-muted-foreground line-through decoration-dotted' : ''}>
-        {withheld ? 'withheld from the agent' : value}
-      </dd>
+      <dd className={cn('text-right', withheld ? 'text-muted-foreground' : 'font-semibold')}>{withheld ? 'Hidden' : value}</dd>
     </>
   );
 }
@@ -42,126 +43,122 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
   }, [quoteId]);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">What an agent can see</h1>
-        <p className="text-muted-foreground">
-          The same quote, as Valio holds it and as the buyer&apos;s agent receives it. The agent gets its own fixed price and
-          whether Valio can fill the request. It does not get the stock, the list price, the discount or the supplier.
-        </p>
-      </header>
+    <Page title="What agents see">
+      <p className="-mt-3 text-muted-foreground">Valio keeps the commercial detail. The agent gets what it needs to decide.</p>
 
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Could not load the quote</AlertTitle>
-          <AlertDescription className="break-words">
-            {error} Run a request on the Buyer agent page first, then follow the link under step 3.
-          </AlertDescription>
+          <AlertDescription className="break-words">{error} Run a request on the Buyer agent page first, then follow the link under the signed quote.</AlertDescription>
         </Alert>
       )}
 
       {views && (
         <>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>What Valio knows</CardTitle>
-                <CardDescription>Internal: never leaves Valio.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 text-sm">
-                {views.internal.lines.map((l) => (
-                  <div key={l.productId} className="flex flex-col gap-1.5">
-                    <div className="font-medium">{l.name}</div>
-                    <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1">
-                      <Row label="Buyer's price" value={`${eur(l.unitPrice)} per ${l.salesUnit}`} />
-                      <Row label="List price" value={eur(l.internal?.listPrice)} />
-                      <Row label="Discount" value={l.internal?.discountPct == null ? '–' : `${l.internal.discountPct}%`} />
-                      <Row label="Price basis" value={l.internal?.netPriceFound ? 'customer-specific net price' : 'catalog price'} />
-                      <Row
-                        label="Stock"
-                        value={
-                          l.internal?.availableAmount != null
-                            ? `${l.internal.availableAmount} ${l.salesUnit}`
-                            : l.logisticModel === 'Terminal'
-                              ? 'unknown to Valio (supplier ships it)'
-                              : 'in stock, no limit reported'
-                        }
-                      />
-                      <Row label="Supplier" value={l.internal?.vendorName ?? '–'} />
-                      <Row label="Category code" value={l.internal?.category ?? '–'} />
-                    </dl>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+          <div className="flex flex-wrap items-start gap-6">
+            <Panel className="flex min-w-0 flex-[1_1_360px] flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[17px] font-semibold">What Valio sees</h2>
+                <Pill>Internal</Pill>
+              </div>
+              {views.internal.lines.map((l) => (
+                <div key={l.productId} className="flex flex-col gap-2">
+                  <p className="font-medium">{l.name}</p>
+                  <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm">
+                    <Row label="Buyer's price" value={`${eur(l.unitPrice)} per ${l.salesUnit}`} />
+                    <Row label="List price" value={eur(l.internal?.listPrice)} />
+                    <Row label="Discount" value={l.internal?.discountPct == null ? '–' : `${l.internal.discountPct}%`} />
+                    <Row label="Price basis" value={l.internal?.netPriceFound ? 'customer-specific net price' : 'catalog price'} />
+                    <Row
+                      label="Stock"
+                      value={
+                        l.internal?.availableAmount != null
+                          ? `${l.internal.availableAmount} ${l.salesUnit}`
+                          : l.logisticModel === 'Terminal'
+                            ? 'unknown (supplier ships it)'
+                            : 'in stock, no limit reported'
+                      }
+                    />
+                    <Row label="Supplier" value={l.internal?.vendorName ?? '–'} />
+                    <Row label="Category code" value={l.internal?.category ?? '–'} />
+                  </dl>
+                </div>
+              ))}
+            </Panel>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>What the agent receives</CardTitle>
-                <CardDescription>Scoped to what it needs to decide and order.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 text-sm">
-                {views.agent.lines.map((l) => (
-                  <div key={l.productId} className="flex flex-col gap-1.5">
-                    <div className="font-medium">{l.name}</div>
-                    <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1">
-                      <Row label="Buyer's price" value={`${eur(l.unitPrice)} per ${l.salesUnit}`} />
-                      <Row label="List price" withheld />
-                      <Row label="Discount" withheld />
-                      <Row label="Price basis" withheld />
-                      <Row
-                        label="Stock"
-                        value={
-                          <span className="flex flex-wrap gap-1">
-                            <Badge variant={l.stock.canFill ? 'default' : 'destructive'}>{l.stock.canFill ? 'can fill' : 'cannot fill'}</Badge>
-                            <Badge variant="outline">{CONFIDENCE[l.stock.confidence]}</Badge>
-                            <Badge variant="outline">level: {l.stock.level}</Badge>
-                          </span>
-                        }
-                      />
-                      <Row label="Supplier" withheld />
-                      <Row label="Category code" withheld />
-                    </dl>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <Panel className="flex min-w-0 flex-[1_1_360px] flex-col gap-4 border-primary">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[17px] font-semibold">What the agent sees</h2>
+                <Pill tone="ok">Exposed</Pill>
+              </div>
+              {views.agent.lines.map((l) => (
+                <div key={l.productId} className="flex flex-col gap-2">
+                  <p className="font-medium">{l.name}</p>
+                  <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm">
+                    <Row label="Buyer's price" value={`${eur(l.unitPrice)} per ${l.salesUnit}`} />
+                    <Row label="List price" withheld />
+                    <Row label="Discount" withheld />
+                    <Row label="Price basis" withheld />
+                    <Row
+                      label="Stock"
+                      value={
+                        <span className="inline-flex flex-wrap justify-end gap-1">
+                          <Pill tone={l.stock.canFill ? 'ok' : 'bad'}>{l.stock.canFill ? 'Can fill' : 'Cannot fill'}</Pill>
+                          <Pill>{CONFIDENCE[l.stock.confidence]}</Pill>
+                        </span>
+                      }
+                    />
+                    <Row label="Supplier" withheld />
+                    <Row label="Category code" withheld />
+                  </dl>
+                </div>
+              ))}
+            </Panel>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                Signed by Valio
-                <Badge variant={views.signatureValid ? 'default' : 'destructive'}>{views.signatureValid ? 'Signature valid' : 'Signature invalid'}</Badge>
-              </CardTitle>
-              <CardDescription>
-                The signature covers the price, quantities, delivery date and validity, and nothing private, so the agent can verify
-                the offer without calling Valio.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm">
-              {views.agent.signature ? (
-                <>
-                  <p>
-                    Algorithm {views.agent.signature.alg} · key <code>{views.agent.signature.keyId}</code> · valid until{' '}
-                    {new Date(views.agent.expiresAt).toLocaleTimeString('en-GB')}
-                  </p>
-                  <p className="break-all font-mono text-xs text-muted-foreground">{views.agent.signature.value}</p>
-                  <p className="text-muted-foreground">
-                    Public key: <a className="underline" href="/.well-known/jwks.json" target="_blank" rel="noreferrer">/.well-known/jwks.json</a>
-                  </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">This quote was issued before signing existed.</p>
-              )}
-              <details>
-                <summary className="cursor-pointer text-muted-foreground">The agent&apos;s JSON</summary>
-                <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-muted p-3 text-xs">{JSON.stringify(views.agent, null, 2)}</pre>
-              </details>
-            </CardContent>
-          </Card>
+          <Panel className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[17px] font-semibold">Signed by Valio</h2>
+              <Pill tone={views.signatureValid ? 'ok' : 'bad'}>{views.signatureValid ? 'Signature valid' : 'Signature invalid'}</Pill>
+            </div>
+            {views.agent.signature ? (
+              <>
+                <p className="text-sm">
+                  {views.agent.signature.alg} · key <code className="font-mono text-xs">{views.agent.signature.keyId}</code> · valid until{' '}
+                  {new Date(views.agent.expiresAt).toLocaleTimeString('en-GB')}
+                </p>
+                <p className="break-all font-mono text-xs text-muted-foreground">{views.agent.signature.value}</p>
+                <p className="text-[13px] text-muted-foreground">
+                  The signature covers price, quantities, delivery date and validity, and nothing private. Public key:{' '}
+                  <a className="text-primary underline" href="/.well-known/jwks.json" target="_blank" rel="noreferrer">
+                    /.well-known/jwks.json
+                  </a>
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">This quote was issued before signing existed.</p>
+            )}
+            <details>
+              <summary className="min-h-9 cursor-pointer py-1.5 text-sm text-primary">The agent&apos;s JSON</summary>
+              <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify(views.agent, null, 2)}</pre>
+            </details>
+          </Panel>
         </>
       )}
-    </div>
+
+      <Panel className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-[1_1_320px] flex-col gap-1">
+          <h2 className="text-[17px] font-semibold">Tools an agent can call</h2>
+          <p className="text-sm text-muted-foreground">Over MCP. Approving an order and editing a mandate are not among them.</p>
+        </div>
+        <div className="flex flex-[1_1_320px] flex-wrap gap-2">
+          {TOOLS.map((t) => (
+            <span key={t} className="inline-flex h-7 items-center rounded-full border bg-muted px-3 font-mono text-xs">
+              {t}
+            </span>
+          ))}
+        </div>
+      </Panel>
+    </Page>
   );
 }

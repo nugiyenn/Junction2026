@@ -1,20 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { cn } from 'cn';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { call, clock, eur } from '@/components/flow/api';
+import { Page, Panel, Pill } from '@/components/page';
 import type { ExposedOrder, Mandate, Order } from '@/types';
 
 type Filter = 'pending_approval' | 'all';
 
-const STATUS: Record<Order['status'], { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
-  confirmed: { label: 'Confirmed', variant: 'default' },
-  pending_approval: { label: 'Awaiting approval', variant: 'secondary' },
-  rejected: { label: 'Rejected', variant: 'destructive' },
+const STATUS: Record<Order['status'], { label: string; tone: 'ok' | 'warn' | 'bad' }> = {
+  confirmed: { label: 'Approved', tone: 'ok' },
+  pending_approval: { label: 'Waiting', tone: 'warn' },
+  rejected: { label: 'Declined', tone: 'bad' },
 };
 
 /** The human side: orders the mandate would not let the agent place alone. */
@@ -63,24 +63,35 @@ export function ApprovalInbox() {
     }
   }
 
+  const noApprover = approver.trim().length < 2;
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8">
-      <header className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Approvals</h1>
-          <p className="text-muted-foreground">Orders the agent may not place alone. Prices are held until the quote expires.</p>
+    <Page
+      title="Approvals"
+      actions={
+        <div className="flex gap-2">
+          {(['pending_approval', 'all'] as const).map((f) => (
+            <Button
+              key={f}
+              variant={filter === f ? 'default' : 'outline'}
+              className={cn('h-11 rounded-full px-4', filter === f && 'bg-foreground text-background hover:bg-foreground/90')}
+              onClick={() => setFilter(f)}
+            >
+              {f === 'all' ? 'All orders' : 'Waiting'}
+            </Button>
+          ))}
         </div>
-        <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">You are</span>
-          <Input className="w-48" value={approver} onChange={(e) => setApprover(e.target.value)} aria-label="Your name" />
-          <Button variant={filter === 'pending_approval' ? 'default' : 'outline'} onClick={() => setFilter('pending_approval')}>
-            Waiting
-          </Button>
-          <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>
-            All orders
-          </Button>
+      }
+    >
+      <Panel className="flex flex-wrap items-center gap-4 px-5 py-4">
+        <div className="flex flex-[1_1_240px] flex-col gap-1.5">
+          <label htmlFor="approver" className="text-xs font-medium tracking-wide text-muted-foreground">
+            Your name, recorded with every decision
+          </label>
+          <Input id="approver" className="h-11" value={approver} onChange={(e) => setApprover(e.target.value)} />
         </div>
-      </header>
+        <p className="flex-[1_1_260px] text-[13px] text-muted-foreground">Only a person can approve or decline. The agent and its tools have no way to do it.</p>
+      </Panel>
 
       {error && (
         <Alert variant="destructive">
@@ -91,71 +102,79 @@ export function ApprovalInbox() {
 
       {orders === null && !error && <p className="text-muted-foreground">Loading…</p>}
       {orders?.length === 0 && (
-        <p className="text-muted-foreground">
-          {filter === 'pending_approval' ? 'Nothing is waiting for approval.' : 'No orders yet.'} Send a request from the Buyer agent page.
-        </p>
+        <Panel className="p-10 text-center text-muted-foreground">
+          {filter === 'pending_approval' ? 'Nothing is waiting for you.' : 'No orders yet.'} Send a request from the Buyer agent page.
+        </Panel>
       )}
 
-      {orders?.map((o) => (
-        <Card key={o.id}>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              {buyers[o.mandateId] ?? o.mandateId}
-              <Badge variant={STATUS[o.status].variant}>{STATUS[o.status].label}</Badge>
-              <span className="ml-auto text-xl">{eur(o.total)}</span>
-            </CardTitle>
-            <CardDescription>
-              Order {o.id.slice(0, 8)} · placed {clock(o.createdAt)} · delivery {o.deliveryDate} · {eur(o.totalWithTax)} incl. VAT
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 text-sm">
-            <ul className="flex flex-col gap-1">
-              {o.lines.map((l) => (
-                <li key={l.productId}>
-                  {l.quantity} {l.salesUnit} × {l.name} · {eur(l.unitPrice)} each ={' '}
-                  <strong>{eur(l.lineTotal)}</strong>
-                  {l.logisticModel === 'Terminal' && <span className="text-muted-foreground"> · supplier stock, unconfirmed</span>}
-                </li>
-              ))}
-            </ul>
+      <div className="flex flex-col gap-4">
+        {orders?.map((o) => {
+          const s = STATUS[o.status];
+          const pending = o.status === 'pending_approval';
+          return (
+            <Panel key={o.id} className="flex flex-col gap-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <h2 className="text-[17px] font-semibold">{buyers[o.mandateId] ?? o.mandateId}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Order {o.id.slice(0, 8)} · placed {clock(o.createdAt)} · delivery {o.deliveryDate}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <p className="font-heading text-2xl font-semibold">{eur(o.total)}</p>
+                  <Pill tone={s.tone}>{s.label}</Pill>
+                </div>
+              </div>
 
-            {o.policyReasons.length > 0 && (
-              <div>
-                <div className="font-medium">Needs you because</div>
-                <ul className="list-disc pl-5">
+              <ul className="flex flex-col gap-1 text-sm">
+                {o.lines.map((l) => (
+                  <li key={l.productId}>
+                    {l.quantity} {l.salesUnit} × {l.name} · {eur(l.unitPrice)} each = <strong>{eur(l.lineTotal)}</strong>
+                    {l.logisticModel === 'Terminal' && <span className="text-muted-foreground"> · supplier stock, unconfirmed</span>}
+                  </li>
+                ))}
+              </ul>
+
+              {o.policyReasons.length > 0 && (
+                <ul className="flex flex-col gap-1.5 border-t pt-3.5">
                   {o.policyReasons.map((r) => (
-                    <li key={r}>{r}</li>
+                    <li key={r} className="flex gap-2 text-[13px] text-muted-foreground">
+                      <span aria-hidden="true">•</span>
+                      <span>{r}</span>
+                    </li>
                   ))}
                 </ul>
-              </div>
-            )}
+              )}
 
-            {o.status === 'pending_approval' ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  className="w-64"
-                  placeholder="Note (optional)"
-                  value={note[o.id] ?? ''}
-                  onChange={(e) => setNote((n) => ({ ...n, [o.id]: e.target.value }))}
-                />
-                <Button onClick={() => decide(o, 'approve')} disabled={busy !== null || !approver.trim()}>
-                  {busy === o.id ? 'Saving…' : 'Approve'}
-                </Button>
-                <Button variant="destructive" onClick={() => decide(o, 'decline')} disabled={busy !== null || !approver.trim()}>
-                  Decline
-                </Button>
-              </div>
-            ) : (
-              o.decidedBy && (
-                <p className="text-muted-foreground">
-                  {o.status === 'confirmed' ? 'Approved' : 'Declined'} by {o.decidedBy} at {clock(o.decidedAt!)}
-                  {o.decisionNote ? `: ${o.decisionNote}` : ''}
-                </p>
-              )
-            )}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+              {pending ? (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Input
+                    className="h-11 w-64"
+                    placeholder="Note (optional)"
+                    value={note[o.id] ?? ''}
+                    onChange={(e) => setNote((n) => ({ ...n, [o.id]: e.target.value }))}
+                    aria-label="Note"
+                  />
+                  <Button className="h-11 px-5" onClick={() => decide(o, 'approve')} disabled={busy !== null || noApprover}>
+                    {busy === o.id ? 'Saving…' : 'Approve'}
+                  </Button>
+                  <Button variant="outline" className="h-11 px-5 text-destructive" onClick={() => decide(o, 'decline')} disabled={busy !== null || noApprover}>
+                    Decline
+                  </Button>
+                  {noApprover && <span className="text-xs text-muted-foreground">Enter your name first.</span>}
+                </div>
+              ) : (
+                o.decidedBy && (
+                  <p className="text-xs text-muted-foreground">
+                    {o.status === 'confirmed' ? 'Approved' : 'Declined'} by {o.decidedBy} at {clock(o.decidedAt!)}
+                    {o.decisionNote ? `: ${o.decisionNote}` : ''}. Written to the decision record.
+                  </p>
+                )
+              )}
+            </Panel>
+          );
+        })}
+      </div>
+    </Page>
   );
 }

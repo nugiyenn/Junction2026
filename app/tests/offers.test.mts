@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildOffers } from '../src/lib/offers.ts';
+import { applyPreference, buildOffers } from '../src/lib/offers.ts';
 import type { Candidate, PurchaseRequest } from '../src/types/index.ts';
 
 const request: PurchaseRequest = { product: 'milk', amount: 1000, amountUnit: 'L', deliveryDate: '2026-11-16', requiredClaims: [] };
@@ -152,5 +152,29 @@ describe('offer facts', () => {
     );
     assert.equal(offers[0].reliability, 0.7);
     assert.equal(offers[0].co2PerKg, 1.8); // (1 * 600 + 3 * 400) / 1000
+  });
+});
+
+describe('buyer preference', () => {
+  const three = () =>
+    buildOffers(
+      [
+        cand('cheap', { unitPrice: 1.0, total: 1000, deliveryReliability: 0.8, co2PerKg: 3 }),
+        cand('reliable', { unitPrice: 1.4, total: 1400, deliveryReliability: 1, co2PerKg: 2 }),
+        cand('green', { unitPrice: 1.3, total: 1300, deliveryReliability: 0.9, co2PerKg: 0.5 }),
+      ],
+      request
+    ).offers;
+
+  it('keeps the cheapest first by default and puts the preferred offer first otherwise', () => {
+    const offers = three();
+    assert.deepEqual(applyPreference(offers, 'cheapest').map((o) => o.lines[0].productId), ['cheap', 'green', 'reliable']);
+    assert.equal(applyPreference(offers, 'most_reliable')[0].lines[0].productId, 'reliable');
+    assert.equal(applyPreference(offers, 'lowest_co2')[0].lines[0].productId, 'green');
+  });
+  it('keeps every offer and leaves the order alone when nothing earned the preferred kind', () => {
+    const { offers } = buildOffers([short('a', 600, 1), short('b', 600, 1.1)], request);
+    assert.deepEqual(applyPreference(offers, 'lowest_co2'), offers);
+    assert.equal(applyPreference(three(), 'most_reliable').length, 3);
   });
 });

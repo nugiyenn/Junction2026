@@ -147,6 +147,8 @@ await pool.query(`
 
   ALTER TABLE mandates ADD COLUMN IF NOT EXISTS min_delivery_reliability double precision;
   ALTER TABLE mandates ADD COLUMN IF NOT EXISTS require_confirmed_stock boolean NOT NULL DEFAULT false;
+  ALTER TABLE mandates ADD COLUMN IF NOT EXISTS max_co2_per_kg double precision;
+  ALTER TABLE mandates ADD COLUMN IF NOT EXISTS preferred_offer text NOT NULL DEFAULT 'cheapest';
 
   CREATE TABLE IF NOT EXISTS quotes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -264,14 +266,15 @@ console.log(`Upserted ${rows.length} products.`);
 // Re-running the seed resets these two mandates to their defaults.
 await pool.query(
   `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
-                         min_delivery_reliability, require_confirmed_stock)
-   VALUES ('demo-hotel', 'Nordic Hotel Group (demo)', 'Hotel purchasing agent', 500, 5000, '[]', NULL, false),
-          ('demo-school', 'City School Kitchens (demo)', 'School kitchen agent', 300, 2000, '["AN", "AP"]', 0.9, true)
+                         min_delivery_reliability, require_confirmed_stock, max_co2_per_kg, preferred_offer)
+   VALUES ('demo-hotel', 'Nordic Hotel Group (demo)', 'Hotel purchasing agent', 500, 5000, '[]', NULL, false, NULL, 'cheapest'),
+          ('demo-school', 'City School Kitchens (demo)', 'School kitchen agent', 300, 2000, '["AN", "AP"]', 0.9, true, 5, 'most_reliable')
    ON CONFLICT (id) DO UPDATE SET
      buyer_name = EXCLUDED.buyer_name, agent_name = EXCLUDED.agent_name,
      auto_approve_limit_eur = EXCLUDED.auto_approve_limit_eur, max_order_eur = EXCLUDED.max_order_eur,
      blocked_allergens = EXCLUDED.blocked_allergens, min_delivery_reliability = EXCLUDED.min_delivery_reliability,
-     require_confirmed_stock = EXCLUDED.require_confirmed_stock`
+     require_confirmed_stock = EXCLUDED.require_confirmed_stock, max_co2_per_kg = EXCLUDED.max_co2_per_kg,
+     preferred_offer = EXCLUDED.preferred_offer`
 );
 
 // --- 5. Embeddings (resumable) ----------------------------------------------

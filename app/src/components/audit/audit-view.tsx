@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { cn } from 'cn';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { call, clock } from '@/components/flow/api';
+import { Page, Panel, Pill } from '@/components/page';
 import type { ChainStatus } from '@/lib/chain';
 import type { AuditEvent } from '@/types';
 
@@ -49,18 +49,8 @@ export function AuditView() {
     }
   }
 
-  const brokenIndex = chain?.brokenAt ? events?.findIndex((e) => e.id === chain.brokenAt) ?? -1 : -1;
-
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Decision record</h1>
-        <p className="text-muted-foreground">
-          What every agent and human did, and why, in plain language. Visible to both the buyer and Valio Aimo. Each entry is
-          hash-chained to the one before it, so neither side can quietly rewrite history.
-        </p>
-      </header>
-
+    <Page title="Decision record">
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Something went wrong</AlertTitle>
@@ -69,66 +59,72 @@ export function AuditView() {
       )}
 
       {chain && (
-        <Card className={chain.valid ? undefined : 'border-destructive'}>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              Chain integrity
-              <Badge variant={chain.valid ? 'default' : 'destructive'}>{chain.valid ? 'Verified' : 'Broken'}</Badge>
-            </CardTitle>
-            <CardDescription>
+        <Panel
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-3 px-5 py-4',
+            chain.valid ? 'border-[#bfddc8] bg-ok-soft' : 'border-[#e7b9ba] bg-bad-soft'
+          )}
+        >
+          <div className={cn('flex flex-col gap-0.5', chain.valid ? 'text-ok' : 'text-destructive')}>
+            <p className="font-semibold">{chain.valid ? 'Chain verified' : `Chain broken at event ${chain.brokenAt}`}</p>
+            <p className="text-[13px]">
               {chain.valid
-                ? `${chain.checked} event(s) re-computed from the first; every hash matches.`
-                : `Event #${chain.brokenAt} does not verify: ${chain.reason}.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 text-sm">
-            {chain.head && (
-              <p className="break-all">
-                Head hash: <code className="text-xs">{chain.head}</code>
-                <span className="text-muted-foreground"> Publish it somewhere else, and even removing the newest events would show.</span>
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => demo('tamper')} disabled={busy !== null || !events?.length}>
-                Demo: edit an old entry in the database
-              </Button>
-              <Button variant="ghost" onClick={() => demo('reset')} disabled={busy !== null}>
-                Reset demo data
-              </Button>
-              <span className="text-xs text-muted-foreground">The first simulates tampering, to show the chain catching it.</span>
-            </div>
-          </CardContent>
-        </Card>
+                ? `${chain.checked} events. Every hash matches the one before it.`
+                : `Its text no longer matches its hash (${chain.reason}). Every event after it can no longer be trusted.`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="h-11 bg-card" onClick={() => demo('tamper')} disabled={busy !== null || !events?.length}>
+              Edit an event (demo)
+            </Button>
+            <Button variant="ghost" className="h-11" onClick={() => demo('reset')} disabled={busy !== null}>
+              Reset demo data
+            </Button>
+          </div>
+        </Panel>
+      )}
+
+      {chain?.head && (
+        <p className="break-all text-xs text-muted-foreground">
+          Head hash <code className="font-mono">{chain.head}</code>. Published elsewhere, it also exposes removed events.
+        </p>
       )}
 
       {events?.length === 0 && <p className="text-muted-foreground">Nothing recorded yet.</p>}
 
       {events && events.length > 0 && (
-        <Card>
-          <CardContent>
-            <ol className="flex flex-col gap-3 text-sm">
-              {events.map((e) => {
-                const bad = brokenIndex >= 0 && e.id === chain?.brokenAt;
-                return (
-                  <li key={e.id} className={`flex flex-col gap-1 rounded-md p-2 ${bad ? 'bg-destructive/10' : ''}`}>
-                    <div className="flex items-start gap-3">
-                      <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{clock(e.at)}</span>
-                      <Badge variant="outline" className="w-16 shrink-0">
-                        {e.actor}
-                      </Badge>
-                      <span className="flex-1">{e.summary}</span>
-                      <span className="shrink-0 font-mono text-xs text-muted-foreground" title={e.hash ?? 'no hash'}>
-                        #{e.id} · {e.hash?.slice(0, 8) ?? '—'}
-                      </span>
+        <Panel className="px-6 py-5">
+          <ol className="flex flex-col gap-5">
+            {events.map((e, i) => {
+              const bad = chain?.brokenAt != null && e.id === chain.brokenAt;
+              return (
+                <li key={e.id} className="relative pl-[22px]">
+                  {i < events.length - 1 && <span aria-hidden="true" className="absolute top-1.5 -bottom-5 left-[5px] w-0.5 bg-border" />}
+                  <span
+                    aria-hidden="true"
+                    className={cn('absolute top-1.5 left-0 size-3 rounded-full border-2 bg-card', bad ? 'border-destructive bg-bad-soft' : 'border-primary')}
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <Pill>{e.actor}</Pill>
+                      <span className="text-xs text-muted-foreground">{clock(e.at)}</span>
                     </div>
-                    {bad && <p className="pl-[7.5rem] text-xs text-destructive">This is the first entry that does not verify: {chain?.reason}.</p>}
-                  </li>
-                );
-              })}
-            </ol>
-          </CardContent>
-        </Card>
+                    <span className="font-mono text-xs text-muted-foreground" title={e.hash ?? 'no hash'}>
+                      #{e.id} · {e.hash?.slice(0, 8) ?? '—'}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm">{e.summary}</p>
+                  {bad && (
+                    <Pill tone="bad" className="mt-2">
+                      First entry that does not verify
+                    </Pill>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </Panel>
       )}
-    </div>
+    </Page>
   );
 }

@@ -12,6 +12,8 @@ const mandate = (over: Partial<Mandate> = {}): Mandate => ({
   blockedAllergens: [],
   minDeliveryReliability: null,
   requireConfirmedStock: false,
+  maxCo2PerKg: null,
+  preferredOffer: 'cheapest',
   ...over,
 });
 
@@ -64,6 +66,23 @@ describe('allergens', () => {
   it('accepts a product that states what it is free from', () => {
     const free = product({ allergensContain: [], allergensFreeFrom: ['AN', 'AP'] });
     assert.equal(run(school, 100, free, line()).outcome, 'auto_approve');
+  });
+});
+
+describe('carbon footprint', () => {
+  const green = mandate({ maxCo2PerKg: 5 });
+  it('needs a human above the maximum', () => {
+    const d = run(green, 100, product({ co2PerKg: 7.5 }), line());
+    assert.equal(d.outcome, 'needs_approval');
+    assert.match(d.reasons[0], /7\.5 kg CO2-eq per kg/);
+  });
+  it('passes at the maximum, below it, and when the footprint is unknown', () => {
+    assert.equal(run(green, 100, product({ co2PerKg: 5 }), line()).outcome, 'auto_approve');
+    assert.equal(run(green, 100, product({ co2PerKg: 1.2 }), line()).outcome, 'auto_approve');
+    assert.equal(run(green, 100, product({ co2PerKg: null }), line()).outcome, 'auto_approve');
+  });
+  it('has no rule when the mandate sets none', () => {
+    assert.equal(run(mandate(), 100, product({ co2PerKg: 30 }), line()).outcome, 'auto_approve');
   });
 });
 

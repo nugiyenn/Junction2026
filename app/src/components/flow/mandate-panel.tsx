@@ -3,8 +3,14 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { Mandate } from '@/types';
+import type { Mandate, OfferPreference } from '@/types';
 import { allergenName, call } from './api';
+
+const PREFERENCES: { value: OfferPreference; label: string }[] = [
+  { value: 'cheapest', label: 'Cheapest' },
+  { value: 'most_reliable', label: 'Most reliable' },
+  { value: 'lowest_co2', label: 'Lowest carbon footprint' },
+];
 
 const COMMON_ALLERGENS = ['AM', 'AE', 'AF', 'AN', 'AP', 'AS', 'AY', 'AW'];
 
@@ -23,6 +29,8 @@ export function MandatePanel({
   const [reliability, setReliability] = useState(
     mandate.minDeliveryReliability === null ? '' : String(Math.round(mandate.minDeliveryReliability * 100))
   );
+  const [co2, setCo2] = useState(mandate.maxCo2PerKg === null ? '' : String(mandate.maxCo2PerKg));
+  const [preferred, setPreferred] = useState<OfferPreference>(mandate.preferredOffer);
   const [confirmedStock, setConfirmedStock] = useState(mandate.requireConfirmedStock);
   const [allergens, setAllergens] = useState<string[]>(mandate.blockedAllergens);
   const [saving, setSaving] = useState(false);
@@ -43,6 +51,8 @@ export function MandatePanel({
           blockedAllergens: allergens,
           minDeliveryReliability: reliability.trim() === '' ? null : Number(reliability) / 100,
           requireConfirmedStock: confirmedStock,
+          maxCo2PerKg: co2.trim() === '' ? null : Number(co2),
+          preferredOffer: preferred,
         },
         'PATCH'
       );
@@ -75,6 +85,27 @@ export function MandatePanel({
             value={reliability}
             onChange={(e) => setReliability(e.target.value)}
           />
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-muted-foreground">Human check above carbon footprint (kg CO₂-eq per kg)</span>
+          <Input type="number" min={0} step="any" placeholder="no rule" value={co2} onChange={(e) => setCo2(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-muted-foreground">Offer the agent holds by default</span>
+          <select
+            value={preferred}
+            onChange={(e) => setPreferred(e.target.value as OfferPreference)}
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {PREFERENCES.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 

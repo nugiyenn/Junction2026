@@ -121,6 +121,9 @@ export type ProductSearchResult = Product & { similarity: number };
 // Mandate: what a buyer has authorised its purchasing agent to do
 // ---------------------------------------------------------------------------
 
+/** Which offer the buyer wants held as a quote by default. */
+export type OfferPreference = 'cheapest' | 'most_reliable' | 'lowest_co2';
+
 export interface Mandate {
   id: string;
   buyerName: string;
@@ -135,6 +138,10 @@ export interface Mandate {
   minDeliveryReliability: number | null;
   /** When true, a Terminal-stock line (supplier stock, unconfirmed) needs a human. */
   requireConfirmedStock: boolean;
+  /** Orders with a product whose carbon footprint (kg CO2-eq per kg, group average) is above this need a human. Null = no rule. */
+  maxCo2PerKg: number | null;
+  /** The offer held as a quote by default when the request has more than one. The buyer can still pick another. */
+  preferredOffer: OfferPreference;
 }
 
 export type PolicyOutcome = 'auto_approve' | 'needs_approval' | 'reject';
@@ -347,6 +354,8 @@ export interface RequestResult {
   offers: Offer[];
   /** Held quote for the default offer (offers[0]), as an agent sees it. Null when there are no offers. */
   quote: ExposedQuote | null;
+  /** What the mandate would decide about that quote if it were ordered now. Null when there is no quote. */
+  policy: PolicyDecision | null;
   /** Plain-language notes on exceptions: a split, a substitution, a shortfall. */
   notes: string[];
 }

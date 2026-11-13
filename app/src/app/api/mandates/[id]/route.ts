@@ -9,6 +9,8 @@ const Body = z.object({
   blockedAllergens: z.array(z.string().regex(/^[A-Z0-9]{2,3}$/)).max(20).optional(),
   minDeliveryReliability: z.number().min(0).max(1).nullable().optional(),
   requireConfirmedStock: z.boolean().optional(),
+  maxCo2PerKg: z.number().min(0).nullable().optional(),
+  preferredOffer: z.enum(['cheapest', 'most_reliable', 'lowest_co2']).optional(),
 });
 
 export async function GET(_request: Request, ctx: RouteContext<'/api/mandates/[id]'>) {
@@ -21,7 +23,8 @@ export async function GET(_request: Request, ctx: RouteContext<'/api/mandates/[i
 
 /**
  * PATCH /api/mandates/:id  { changedBy, autoApproveLimitEur?, maxOrderEur?, blockedAllergens?,
- *                            minDeliveryReliability? (0-1 or null), requireConfirmedStock? }
+ *                            minDeliveryReliability? (0-1 or null), requireConfirmedStock?,
+ *                            maxCo2PerKg? (kg CO2-eq per kg, or null), preferredOffer? }
  * The buyer edits what the agent may do. Every change is written to the audit trail.
  */
 export async function PATCH(request: Request, ctx: RouteContext<'/api/mandates/[id]'>) {

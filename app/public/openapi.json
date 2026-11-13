@@ -200,6 +200,9 @@
                   "properties": {
                     "quote": {
                       "$ref": "#/components/schemas/ExposedQuote"
+                    },
+                    "policy": {
+                      "$ref": "#/components/schemas/PolicyDecision"
                     }
                   }
                 }
@@ -829,6 +832,26 @@
                   },
                   "requireConfirmedStock": {
                     "type": "boolean"
+                  },
+                  "maxCo2PerKg": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "description": "kg CO2-eq per kg (a product-group average). A product with a higher footprint needs a human."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "preferredOffer": {
+                    "type": "string",
+                    "enum": [
+                      "cheapest",
+                      "most_reliable",
+                      "lowest_co2"
+                    ],
+                    "description": "The offer held as a quote by default when a request has more than one."
                   }
                 },
                 "required": [
@@ -1209,6 +1232,26 @@
           "requireConfirmedStock": {
             "type": "boolean",
             "description": "Terminal stock (supplier ships it, quantity unknown) needs a human."
+          },
+          "maxCo2PerKg": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "kg CO2-eq per kg (a product-group average). A product with a higher footprint needs a human."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredOffer": {
+            "type": "string",
+            "enum": [
+              "cheapest",
+              "most_reliable",
+              "lowest_co2"
+            ],
+            "description": "The offer held as a quote by default when a request has more than one."
           }
         },
         "required": [
@@ -1219,7 +1262,9 @@
           "maxOrderEur",
           "blockedAllergens",
           "minDeliveryReliability",
-          "requireConfirmedStock"
+          "requireConfirmedStock",
+          "maxCo2PerKg",
+          "preferredOffer"
         ],
         "description": "What the buyer has authorised the agent to decide alone."
       },
@@ -2014,6 +2059,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the mandate would decide if the quote were ordered now."
           }
         },
         "required": [
@@ -2023,7 +2079,8 @@
           "candidates",
           "offers",
           "quote",
-          "notes"
+          "notes",
+          "policy"
         ]
       },
       "VerifiedStatement": {
@@ -2337,6 +2394,31 @@
         "required": [
           "keys"
         ]
+      },
+      "PolicyDecision": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "auto_approve",
+              "needs_approval",
+              "reject"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every rule that fired, in plain language. Empty when the order is inside the mandate."
+          }
+        },
+        "required": [
+          "outcome",
+          "reasons"
+        ],
+        "description": "What the buyer's mandate decides about an order."
       }
     }
   }
