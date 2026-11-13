@@ -5,6 +5,7 @@
 //
 // Needs AIVEN_DATABASE_URL and GEMINI_API_KEY, and the three data files in data/.
 import { readFileSync } from 'node:fs';
+import { eventHash } from '../src/lib/chain.ts';
 import { enableVectorExtension, getPool } from '../src/lib/db.ts';
 import { embedTexts } from '../src/lib/llm.ts';
 
@@ -137,6 +138,16 @@ await pool.query(`
     blocked_allergens jsonb NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS signing_keys (
+    kid text PRIMARY KEY,
+    private_pem text NOT NULL,
+    public_pem text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );
+
+  ALTER TABLE mandates ADD COLUMN IF NOT EXISTS min_delivery_reliability double precision;
+  ALTER TABLE mandates ADD COLUMN IF NOT EXISTS require_confirmed_stock boolean NOT NULL DEFAULT false;
+
   CREATE TABLE IF NOT EXISTS quotes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     mandate_id text NOT NULL REFERENCES mandates(id),
@@ -149,6 +160,9 @@ await pool.query(`
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL
   );
+
+  ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signature text;
+  ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signature_key_id text;
 
   CREATE TABLE IF NOT EXISTS orders (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,6 +181,17 @@ await pool.query(`
     decision_note text
   );
 
+  CREATE TABLE IF NOT EXISTS verifications (
+    product_id text PRIMARY KEY REFERENCES products(id),
+    checked_at timestamptz NOT NULL DEFAULT now(),
+    status text NOT NULL,
+    statements jsonb NOT NULL,
+    contradictions jsonb NOT NULL,
+    sources jsonb NOT NULL,
+    search_request_id text,
+    summary text NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS audit_events (
     id bigserial PRIMARY KEY,
     at timestamptz NOT NULL DEFAULT now(),
@@ -178,7 +203,35 @@ await pool.query(`
     summary text NOT NULL,
     data jsonb NOT NULL
   );
+  ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS prev_hash text;
+  ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS hash text;
 `);
+
+// Events written before the hash chain existed get hashed now, oldest first, so one chain covers the whole trail.
+{
+  const { rows } = await pool.query(
+    'SELECT * FROM audit_events WHERE hash IS NULL ORDER BY id ASC'
+  );
+  const { rows: before } = await pool.query(
+    `SELECT hash FROM audit_events WHERE hash IS NOT NULL ORDER BY id DESC LIMIT 1`
+  );
+  let prev: string | null = before[0]?.hash ?? null;
+  for (const r of rows) {
+    const hash = eventHash(prev, {
+      at: new Date(r.at).toISOString(),
+      actor: r.actor,
+      action: r.action,
+      mandateId: r.mandate_id,
+      quoteId: r.quote_id,
+      orderId: r.order_id,
+      summary: r.summary,
+      data: r.data,
+    });
+    await pool.query('UPDATE audit_events SET prev_hash = $2, hash = $3 WHERE id = $1', [r.id, prev, hash]);
+    prev = hash;
+  }
+  if (rows.length) console.log(`Hash-chained ${rows.length} earlier audit events.`);
+}
 
 // --- 3. Products ------------------------------------------------------------
 
@@ -208,20 +261,40 @@ console.log(`Upserted ${rows.length} products.`);
 
 // --- 4. Demo mandates -------------------------------------------------------
 
+// Re-running the seed resets these two mandates to their defaults.
 await pool.query(
-  `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens)
-   VALUES ('demo-hotel', 'Nordic Hotel Group (demo)', 'Hotel purchasing agent', 500, 5000, '[]'),
-          ('demo-school', 'City School Kitchens (demo)', 'School kitchen agent', 300, 2000, '["AN", "AP"]')
-   ON CONFLICT (id) DO NOTHING`
+  `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
+                         min_delivery_reliability, require_confirmed_stock)
+   VALUES ('demo-hotel', 'Nordic Hotel Group (demo)', 'Hotel purchasing agent', 500, 5000, '[]', NULL, false),
+          ('demo-school', 'City School Kitchens (demo)', 'School kitchen agent', 300, 2000, '["AN", "AP"]', 0.9, true)
+   ON CONFLICT (id) DO UPDATE SET
+     buyer_name = EXCLUDED.buyer_name, agent_name = EXCLUDED.agent_name,
+     auto_approve_limit_eur = EXCLUDED.auto_approve_limit_eur, max_order_eur = EXCLUDED.max_order_eur,
+     blocked_allergens = EXCLUDED.blocked_allergens, min_delivery_reliability = EXCLUDED.min_delivery_reliability,
+     require_confirmed_stock = EXCLUDED.require_confirmed_stock`
 );
 
 // --- 5. Embeddings (resumable) ----------------------------------------------
 
+// `--no-embed` stops after the tables, products and mandates: use it to apply schema changes without
+// spending embedding quota.
+if (process.argv.includes('--no-embed')) {
+  console.log('Done (embeddings skipped).');
+  await pool.end();
+  process.exit(0);
+}
+
+// Gemini's free tier allows 1000 embedded texts per DAY (and 100 per minute), so the full catalog cannot
+// be embedded on it. The batch is 50 a minute so a running app keeps quota for its own search queries.
+// Search falls back to keyword-only when embeddings are unavailable.
+const BATCH = 50;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 for (;;) {
+  const started = Date.now();
   const { rows: batch } = await pool.query<{ id: string; embedding_text: string }>(
-    'SELECT id, embedding_text FROM products WHERE embedding IS NULL ORDER BY id LIMIT 100'
+    'SELECT id, embedding_text FROM products WHERE embedding IS NULL ORDER BY id LIMIT $1',
+    [BATCH]
   );
   if (batch.length === 0) break;
 
@@ -230,7 +303,7 @@ for (;;) {
     vectors = await embedTexts(batch.map((b) => b.embedding_text));
   } catch (err) {
     if ((err as { status?: number }).status !== 429) throw err;
-    console.log('Gemini rate limit hit, waiting 60 s...');
+    console.log(`${new Date().toLocaleTimeString('en-GB')} Gemini rate limit hit, waiting 60 s...`);
     await sleep(60_000);
     continue;
   }
@@ -241,7 +314,8 @@ for (;;) {
     [JSON.stringify(batch.map((b, i) => ({ id: b.id, e: `[${vectors[i].join(',')}]` })))]
   );
   const { rows: left } = await pool.query('SELECT count(*)::int AS n FROM products WHERE embedding IS NULL');
-  console.log(`Embedded ${batch.length}, ${left[0].n} left.`);
+  console.log(`${new Date().toLocaleTimeString('en-GB')} embedded ${batch.length}, ${left[0].n} left.`);
+  if (left[0].n > 0) await sleep(Math.max(0, 60_000 - (Date.now() - started)));
 }
 
 console.log('Done.');

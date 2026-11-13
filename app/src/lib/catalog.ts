@@ -67,25 +67,100 @@ export interface ProductFilters {
   excludeAllergens?: string[];
 }
 
-/** Semantic search over the static catalog, narrowed by SQL filters. No prices or stock. */
+/** SQL filter shared by both searches. Values start at `$firstParam` so each search can put its own params first. */
+function filterSql(filters: ProductFilters, firstParam: number): { sql: string[]; params: unknown[] } {
+  const sql: string[] = [];
+  const params: unknown[] = [];
+  const next = (value: unknown) => `$${params.push(value) + firstParam - 1}`;
+
+  if (filters.claims?.length) sql.push(`claims @> ${next(JSON.stringify(filters.claims))}::jsonb`);
+  if (filters.labels?.length) sql.push(`labels @> ${next(JSON.stringify(filters.labels))}::jsonb`);
+  if (filters.excludeAllergens?.length) {
+    const p = next(filters.excludeAllergens);
+    sql.push(`NOT (allergens_contain ?| ${p}::text[]) AND NOT (allergens_may_contain ?| ${p}::text[])`);
+  }
+  return { sql, params };
+}
+
+/** How many results each search contributes before fusion. */
+const POOL = 50;
+
+/**
+ * Hybrid search over the static catalog: keyword (Postgres full-text on names, brand and claims) and
+ * semantic (pgvector) results, merged with reciprocal rank fusion and narrowed by the same SQL filters.
+ * Keyword search also covers products whose embedding hasn't been computed yet. No prices or stock.
+ * `similarity` is the fused score: higher is better, comparable only within one result list.
+ */
 export async function searchProducts(
   query: string,
   filters: ProductFilters = {},
   limit = 10
-): Promise<ProductSearchResult[]> {
-  const where = ['embedding IS NOT NULL'];
-  const params: unknown[] = [];
-  const next = (value: unknown) => `$${params.push(value) + 2}`; // $1 and $2 belong to vectorSearch
+): Promise<{ products: ProductSearchResult[]; semantic: boolean; excludedByAllergens: number }> {
+  const words = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (words.length === 0) return { products: [], semantic: false, excludedByAllergens: 0 };
 
-  if (filters.claims?.length) where.push(`claims @> ${next(JSON.stringify(filters.claims))}::jsonb`);
-  if (filters.labels?.length) where.push(`labels @> ${next(JSON.stringify(filters.labels))}::jsonb`);
+  // Keyword: any word may match, ranked by how well.
+  const keywordFilter = filterSql(filters, 3);
+  const { rows: keywordRows } = await getPool().query<ProductRow>(
+    `SELECT * FROM products
+     WHERE to_tsvector('simple', embedding_text) @@ to_tsquery('simple', $1)
+     ${keywordFilter.sql.map((s) => `AND ${s}`).join(' ')}
+     ORDER BY ts_rank(to_tsvector('simple', embedding_text), to_tsquery('simple', $1)) DESC, id
+     LIMIT $2`,
+    [words.join(' | '), POOL, ...keywordFilter.params]
+  );
+
+  // How many keyword matches the allergen filter removed, so the buyer can see what the mandate hid.
+  let excludedByAllergens = 0;
   if (filters.excludeAllergens?.length) {
-    const p = next(filters.excludeAllergens);
-    where.push(`NOT (allergens_contain ?| ${p}::text[]) AND NOT (allergens_may_contain ?| ${p}::text[])`);
+    const rest = filterSql({ claims: filters.claims, labels: filters.labels }, 2);
+    const allergenParam = `$${rest.params.length + 2}`;
+    const { rows } = await getPool().query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM products
+       WHERE to_tsvector('simple', embedding_text) @@ to_tsquery('simple', $1)
+       ${rest.sql.map((s) => `AND ${s}`).join(' ')}
+       AND (allergens_contain ?| ${allergenParam}::text[] OR allergens_may_contain ?| ${allergenParam}::text[])`,
+      [words.join(' | '), ...rest.params, filters.excludeAllergens]
+    );
+    excludedByAllergens = rows[0].n;
   }
 
-  const rows = await vectorSearch<ProductRow>('products', await embedText(query), limit, where.join(' AND '), params);
-  return rows.map((r) => ({ ...toProduct(r), similarity: Number(r.similarity) }));
+  // Semantic: only products that already have an embedding. If embedding the query fails (for example
+  // Gemini's free daily quota), keyword results still answer, and the caller is told `semantic: false`.
+  let vectorRows: ProductRow[] = [];
+  let semantic = true;
+  try {
+    const vectorFilter = filterSql(filters, 3); // $1 and $2 belong to vectorSearch
+    vectorRows = await vectorSearch<ProductRow>(
+      'products',
+      await embedText(query),
+      POOL,
+      ['embedding IS NOT NULL', ...vectorFilter.sql].join(' AND '),
+      vectorFilter.params
+    );
+  } catch (err) {
+    semantic = false;
+    console.warn('Semantic search unavailable, using keyword search only:', (err as Error).message.slice(0, 160));
+  }
+
+  // Reciprocal rank fusion: a product ranked high by either search, or by both, comes first.
+  const fused = new Map<string, { row: ProductRow; score: number }>();
+  for (const list of [keywordRows, vectorRows]) {
+    list.forEach((row, rank) => {
+      const entry = fused.get(row.id) ?? { row, score: 0 };
+      entry.score += 1 / (60 + rank);
+      fused.set(row.id, entry);
+    });
+  }
+
+  const products = [...fused.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ row, score }) => {
+      delete row.embedding;
+      return { ...toProduct(row), similarity: Number(score.toFixed(4)) };
+    });
+  return { products, semantic, excludedByAllergens };
 }
 
 export async function getProductsByIds(ids: string[]): Promise<Map<string, Product>> {

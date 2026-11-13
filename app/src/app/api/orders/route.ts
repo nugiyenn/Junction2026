@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { exposeOrder } from '@/lib/exposure';
 import { errorResponse } from '@/lib/http';
 import { listOrders, placeOrder } from '@/lib/purchasing';
 
@@ -14,7 +15,7 @@ const Status = z.enum(['confirmed', 'pending_approval', 'rejected']).optional();
 export async function POST(request: Request) {
   try {
     const { quoteId } = Body.parse(await request.json());
-    return Response.json({ order: await placeOrder(quoteId) }, { status: 201 });
+    return Response.json({ order: exposeOrder(await placeOrder(quoteId)) }, { status: 201 });
   } catch (err) {
     return errorResponse(err);
   }
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
 export async function GET(request: NextRequest) {
   try {
     const status = Status.parse(request.nextUrl.searchParams.get('status') ?? undefined);
-    return Response.json({ orders: await listOrders(status) });
+    return Response.json({ orders: (await listOrders(status)).map(exposeOrder) });
   } catch (err) {
     return errorResponse(err);
   }

@@ -4,8 +4,19 @@ import { getProductsByIds } from '@/lib/catalog';
 import { getPool } from '@/lib/db';
 import { HttpError } from '@/lib/http';
 import { evaluateOrder } from '@/lib/policy';
+import { signQuote, verifyQuoteSignature } from '@/lib/signing';
+import { getVerifications } from '@/lib/verify';
 import { getAvailability, getPrices } from '@/lib/valio';
-import type { Mandate, Order, OrderStatus, Quote, QuoteLine } from '@/types';
+import type {
+  Mandate,
+  Order,
+  OrderStatus,
+  Product,
+  Quote,
+  QuoteLine,
+  ValioProductAvailability,
+  ValioProductPrice,
+} from '@/types';
 
 /** How long a quoted price is held for the agent. */
 const QUOTE_TTL_MS = 15 * 60 * 1000;
@@ -20,18 +31,77 @@ const parseValioTime = (s: string) => new Date(s.replace(/([+-]\d{2})(\d{2})$/, 
 
 // --- Mandates ---------------------------------------------------------------
 
+interface MandateRow {
+  id: string;
+  buyer_name: string;
+  agent_name: string;
+  auto_approve_limit_eur: number;
+  max_order_eur: number;
+  blocked_allergens: string[];
+  min_delivery_reliability: number | null;
+  require_confirmed_stock: boolean;
+}
+
+const toMandate = (r: MandateRow): Mandate => ({
+  id: r.id,
+  buyerName: r.buyer_name,
+  agentName: r.agent_name,
+  autoApproveLimitEur: r.auto_approve_limit_eur,
+  maxOrderEur: r.max_order_eur,
+  blockedAllergens: r.blocked_allergens,
+  minDeliveryReliability: r.min_delivery_reliability,
+  requireConfirmedStock: r.require_confirmed_stock,
+});
+
 export async function getMandate(id: string): Promise<Mandate> {
-  const { rows } = await getPool().query('SELECT * FROM mandates WHERE id = $1', [id]);
+  const { rows } = await getPool().query<MandateRow>('SELECT * FROM mandates WHERE id = $1', [id]);
   if (rows.length === 0) throw new HttpError(404, `Unknown mandate: ${id}`);
-  const r = rows[0];
-  return {
-    id: r.id,
-    buyerName: r.buyer_name,
-    agentName: r.agent_name,
-    autoApproveLimitEur: r.auto_approve_limit_eur,
-    maxOrderEur: r.max_order_eur,
-    blockedAllergens: r.blocked_allergens,
-  };
+  return toMandate(rows[0]);
+}
+
+export async function listMandates(): Promise<Mandate[]> {
+  const { rows } = await getPool().query<MandateRow>('SELECT * FROM mandates ORDER BY id');
+  return rows.map(toMandate);
+}
+
+export type MandateChanges = Partial<
+  Pick<Mandate, 'autoApproveLimitEur' | 'maxOrderEur' | 'blockedAllergens' | 'minDeliveryReliability' | 'requireConfirmedStock'>
+>;
+
+/** The buyer edits what the agent may do. Takes effect on the next order; held quotes are re-judged at order time. */
+export async function updateMandate(id: string, changes: MandateChanges, changedBy: string): Promise<Mandate> {
+  const before = await getMandate(id);
+  const next = { ...before, ...changes };
+  if (next.maxOrderEur < next.autoApproveLimitEur) {
+    throw new HttpError(400, 'The maximum order value cannot be below the auto-approve limit.');
+  }
+
+  const { rows } = await getPool().query<MandateRow>(
+    `UPDATE mandates SET auto_approve_limit_eur = $2, max_order_eur = $3, blocked_allergens = $4,
+       min_delivery_reliability = $5, require_confirmed_stock = $6
+     WHERE id = $1 RETURNING *`,
+    [id, next.autoApproveLimitEur, next.maxOrderEur, JSON.stringify(next.blockedAllergens), next.minDeliveryReliability, next.requireConfirmedStock]
+  );
+  const mandate = toMandate(rows[0]);
+
+  const changed = (Object.keys(changes) as (keyof MandateChanges)[]).filter(
+    (k) => JSON.stringify(before[k]) !== JSON.stringify(mandate[k])
+  );
+  if (changed.length > 0) {
+    await logAudit({
+      actor: 'human',
+      action: 'mandate_changed',
+      mandateId: id,
+      quoteId: null,
+      orderId: null,
+      summary:
+        `${changedBy} changed ${mandate.buyerName}'s mandate: ` +
+        changed.map((k) => `${k} ${JSON.stringify(before[k])} → ${JSON.stringify(mandate[k])}`).join(', ') +
+        '.',
+      data: { changedBy, before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, mandate[k]])) },
+    });
+  }
+  return mandate;
 }
 
 // --- Quotes -----------------------------------------------------------------
@@ -47,6 +117,8 @@ interface QuoteRow {
   fulfillable: boolean;
   created_at: Date;
   expires_at: Date;
+  signature: string | null;
+  signature_key_id: string | null;
 }
 
 const toQuote = (r: QuoteRow): Quote => ({
@@ -60,13 +132,97 @@ const toQuote = (r: QuoteRow): Quote => ({
   fulfillable: r.fulfillable,
   createdAt: r.created_at.toISOString(),
   expiresAt: r.expires_at.toISOString(),
+  signature: r.signature && r.signature_key_id ? { alg: 'EdDSA', keyId: r.signature_key_id, value: r.signature } : null,
 });
+
+/**
+ * Turns Valio's price and availability answers for one product into a quote line, listing every
+ * reason it cannot be delivered as requested. Shared by quotes and by candidate ranking.
+ */
+export function buildQuoteLine(
+  product: Product,
+  quantity: number,
+  deliveryDate: string,
+  price: ValioProductPrice | undefined,
+  avail: ValioProductAvailability | undefined,
+  now: number
+): QuoteLine {
+  const schedule = avail?.scheduleLines[0];
+  const unit = schedule?.salesUnit ?? product.salesUnit;
+  const issues: string[] = [];
+
+  const unitPrice = price && !price.error ? (price.catalogPrice?.value ?? null) : null;
+  const unitPriceWithTax = price && !price.error ? (price.catalogPrice?.valueWithTax ?? null) : null;
+  if (unitPrice === null) issues.push('No price available.');
+
+  const availableAmount = schedule && schedule.availableAmount < UNKNOWN_STOCK ? schedule.availableAmount : null;
+  if (!schedule) {
+    issues.push('Cannot be delivered on any date.');
+  } else {
+    if (avail.salesBlock || schedule.salesBlock) issues.push('Currently blocked from sale.');
+    if (schedule.availableDate && schedule.availableDate > deliveryDate) {
+      issues.push(`Earliest delivery is ${schedule.availableDate}.`);
+    }
+    if (availableAmount !== null && availableAmount < quantity) {
+      issues.push(`Only ${availableAmount} ${unit} available.`);
+    }
+  }
+
+  if (avail?.closingTime && parseValioTime(avail.closingTime).getTime() <= now) {
+    issues.push(`Order cut-off passed at ${avail.closingTime}.`);
+  }
+
+  return {
+    productId: product.id,
+    name: product.nameEn ?? product.nameFi,
+    quantity,
+    salesUnit: unit,
+    unitPrice,
+    unitPriceWithTax,
+    comparisonPrice: price?.comparisonPrice?.value ?? null,
+    comparisonUnit: price?.comparisonUnit ?? null,
+    lineTotal: unitPrice === null ? null : round2(unitPrice * quantity),
+    lineTotalWithTax: unitPriceWithTax === null ? null : round2(unitPriceWithTax * quantity),
+    availableAmount,
+    availableDate: schedule?.availableDate ?? null,
+    closingTime: avail?.closingTime ?? null,
+    logisticModel: avail?.logisticModel ?? null,
+    fulfillable: issues.length === 0,
+    issues,
+    substitutes: product.substitutes,
+    internal: {
+      listPrice: price?.listPrice?.value ?? null,
+      discountPct:
+        price?.listPrice?.value && unitPrice !== null && price.listPrice.value > 0
+          ? round2((1 - unitPrice / price.listPrice.value) * 100)
+          : null,
+      netPriceFound: price ? price.netPriceFound : null,
+      availableAmount,
+      vendorName: product.vendorName,
+      category: product.category,
+    },
+  };
+}
+
+/** A stored quote, whole (with Valio's internal fields). Pass `latest` for the most recent one. */
+export async function getQuote(id: string): Promise<Quote> {
+  const { rows } = await getPool().query<QuoteRow>(
+    id === 'latest' ? 'SELECT * FROM quotes ORDER BY created_at DESC LIMIT 1' : 'SELECT * FROM quotes WHERE id = $1',
+    id === 'latest' ? [] : [id]
+  );
+  if (rows.length === 0) throw new HttpError(404, id === 'latest' ? 'There are no quotes yet.' : `Unknown quote: ${id}`);
+  return toQuote(rows[0]);
+}
 
 export interface QuoteRequest {
   mandateId: string;
   /** YYYY-MM-DD */
   deliveryDate: string;
-  lines: { productId: string; quantity: number }[];
+  /**
+   * `substituteFor` marks a line as replacing another product. The server accepts it only when Valio itself lists
+   * the line's product as a substitute for that one, and the mandate then sends the order to a human.
+   */
+  lines: { productId: string; quantity: number; substituteFor?: string }[];
 }
 
 /**
@@ -77,11 +233,18 @@ export async function createQuote(request: QuoteRequest): Promise<Quote> {
   const ids = request.lines.map((l) => l.productId);
   if (new Set(ids).size !== ids.length) throw new HttpError(400, 'Each product may appear on only one line.');
 
-  const [mandate, products] = await Promise.all([getMandate(request.mandateId), getProductsByIds(ids)]);
+  const replaced = request.lines.flatMap((l) => (l.substituteFor ? [l.substituteFor] : []));
+  const [mandate, products] = await Promise.all([
+    getMandate(request.mandateId),
+    getProductsByIds([...new Set([...ids, ...replaced])]),
+  ]);
 
-  for (const { productId, quantity } of request.lines) {
+  for (const { productId, quantity, substituteFor } of request.lines) {
     const product = products.get(productId);
     if (!product) throw new HttpError(404, `Unknown product: ${productId}`);
+    if (substituteFor && !products.get(substituteFor)?.substitutes.includes(productId)) {
+      throw new HttpError(400, `${productId} is not a substitute Valio lists for ${substituteFor}.`);
+    }
     const lots = quantity / product.allowedLotSize;
     if (Math.abs(lots - Math.round(lots)) > 1e-6) {
       throw new HttpError(400, `Quantity of ${productId} must be a multiple of ${product.allowedLotSize} ${product.salesUnit}.`);
@@ -96,56 +259,23 @@ export async function createQuote(request: QuoteRequest): Promise<Quote> {
   const now = Date.now();
   let expiresAt = now + QUOTE_TTL_MS;
 
-  const lines = request.lines.map(({ productId, quantity }): QuoteLine => {
-    const product = products.get(productId)!;
-    const price = prices.products.find((p) => p.productId === productId);
-    const avail = availability.products.find((p) => p.productId === productId);
-    const schedule = avail?.scheduleLines[0];
-    const unit = schedule?.salesUnit ?? product.salesUnit;
-    const issues: string[] = [];
-
-    const unitPrice = price && !price.error ? (price.catalogPrice?.value ?? null) : null;
-    const unitPriceWithTax = price && !price.error ? (price.catalogPrice?.valueWithTax ?? null) : null;
-    if (unitPrice === null) issues.push('No price available.');
-
-    const availableAmount = schedule && schedule.availableAmount < UNKNOWN_STOCK ? schedule.availableAmount : null;
-    if (!schedule) {
-      issues.push('Cannot be delivered on any date.');
-    } else {
-      if (avail.salesBlock || schedule.salesBlock) issues.push('Currently blocked from sale.');
-      if (schedule.availableDate && schedule.availableDate > request.deliveryDate) {
-        issues.push(`Earliest delivery is ${schedule.availableDate}.`);
-      }
-      if (availableAmount !== null && availableAmount < quantity) {
-        issues.push(`Only ${availableAmount} ${unit} available.`);
-      }
-    }
-
-    if (avail?.closingTime) {
-      const closing = parseValioTime(avail.closingTime).getTime();
-      if (closing <= now) issues.push(`Order cut-off passed at ${avail.closingTime}.`);
-      else expiresAt = Math.min(expiresAt, closing);
-    }
-
-    return {
-      productId,
-      name: product.nameEn ?? product.nameFi,
+  const lines = request.lines.map(({ productId, quantity, substituteFor }) => {
+    const line = buildQuoteLine(
+      products.get(productId)!,
       quantity,
-      salesUnit: unit,
-      unitPrice,
-      unitPriceWithTax,
-      comparisonPrice: price?.comparisonPrice?.value ?? null,
-      comparisonUnit: price?.comparisonUnit ?? null,
-      lineTotal: unitPrice === null ? null : round2(unitPrice * quantity),
-      lineTotalWithTax: unitPriceWithTax === null ? null : round2(unitPriceWithTax * quantity),
-      availableAmount,
-      availableDate: schedule?.availableDate ?? null,
-      closingTime: avail?.closingTime ?? null,
-      logisticModel: avail?.logisticModel ?? null,
-      fulfillable: issues.length === 0,
-      issues,
-      substitutes: product.substitutes,
-    };
+      request.deliveryDate,
+      prices.products.find((p) => p.productId === productId),
+      availability.products.find((p) => p.productId === productId),
+      now
+    );
+    if (line.closingTime && line.fulfillable) {
+      expiresAt = Math.min(expiresAt, parseValioTime(line.closingTime).getTime());
+    }
+    if (substituteFor) {
+      line.isSubstitute = true;
+      line.substituteFor = substituteFor;
+    }
+    return line;
   });
 
   const fulfillable = lines.every((l) => l.fulfillable);
@@ -157,7 +287,10 @@ export async function createQuote(request: QuoteRequest): Promise<Quote> {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [mandate.id, request.deliveryDate, prices.currency, JSON.stringify(lines), total, totalWithTax, fulfillable, new Date(expiresAt)]
   );
-  const quote = toQuote(rows[0]);
+  const unsigned = toQuote(rows[0]);
+  const signature = await signQuote(unsigned);
+  await getPool().query('UPDATE quotes SET signature = $2, signature_key_id = $3 WHERE id = $1', [unsigned.id, signature.value, signature.keyId]);
+  const quote: Quote = { ...unsigned, signature };
 
   const problems = lines.filter((l) => !l.fulfillable).map((l) => `${l.name}: ${l.issues.join(' ')}`);
   await logAudit({
@@ -229,12 +362,18 @@ export async function placeOrder(quoteId: string): Promise<Order> {
     const problems = quote.lines.filter((l) => !l.fulfillable).map((l) => `${l.name}: ${l.issues.join(' ')}`);
     throw new HttpError(409, `Quote cannot be ordered as is. ${problems.join(' ')}`);
   }
+  // The order commits to the terms Valio signed. A quote edited after it was issued no longer verifies.
+  if (!(await verifyQuoteSignature(quote))) {
+    throw new HttpError(409, 'The quote is unsigned, or its price or quantities no longer match Valio\'s signature. Request a new quote.');
+  }
 
-  const [mandate, products] = await Promise.all([
+  const lineIds = quote.lines.map((l) => l.productId);
+  const [mandate, products, verifications] = await Promise.all([
     getMandate(quote.mandateId),
-    getProductsByIds(quote.lines.map((l) => l.productId)),
+    getProductsByIds(lineIds),
+    getVerifications(lineIds), // stored live-web checks only: no live call while an order is judged
   ]);
-  const decision = evaluateOrder(mandate, quote, products);
+  const decision = evaluateOrder(mandate, quote, products, verifications);
   const status: OrderStatus = { auto_approve: 'confirmed', needs_approval: 'pending_approval', reject: 'rejected' }[
     decision.outcome
   ] as OrderStatus;

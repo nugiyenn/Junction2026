@@ -1,0 +1,2343 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Valio Aimo trust gateway (Junction 2026 prototype)",
+    "version": "0.1.0",
+    "description": "How an external purchasing agent finds products, gets a fixed signed price, and orders from Valio Aimo, within a mandate the buyer set, seeing only what it should, on a hash-chained record. All data is synthetic. The same functions are available as an MCP server at /api/mcp."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000"
+    }
+  ],
+  "paths": {
+    "/api/products/search": {
+      "get": {
+        "summary": "Search the catalog",
+        "description": "Static data only (no price or stock). Hybrid keyword and semantic search, narrowed by SQL filters.",
+        "tags": [
+          "Lookup"
+        ],
+        "responses": {
+          "200": {
+            "description": "Products and whether semantic search contributed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    },
+                    "semantic": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "What to look for."
+          },
+          {
+            "name": "claims",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated claims every product must have, e.g. FREE_FROM_LACTOSE."
+          },
+          {
+            "name": "labels",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated labels, e.g. EU_ORGANIC_FARMING."
+          },
+          {
+            "name": "excludeAllergens",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated allergen codes to exclude (contains or may contain)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "1-50, default 10."
+          },
+          {
+            "name": "mandateId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ties the search to a mandate in the decision record."
+          }
+        ]
+      }
+    },
+    "/api/requests": {
+      "post": {
+        "summary": "Turn a plain-language need into offers",
+        "description": "A language model reads the need; code converts quantities, prices only a shortlist live, builds offers and holds a quote for the default one. Takes up to a minute.",
+        "tags": [
+          "Request"
+        ],
+        "responses": {
+          "201": {
+            "description": "Offers and a held quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "e.g. \"I need 1,000 litres of lactose-free milk by Monday.\""
+                  }
+                },
+                "required": [
+                  "mandateId",
+                  "text"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotes": {
+      "post": {
+        "summary": "Create a fixed-price quote",
+        "description": "Live price and availability, held until expiresAt, signed by Valio.",
+        "tags": [
+          "Quote"
+        ],
+        "responses": {
+          "201": {
+            "description": "The quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quote": {
+                      "$ref": "#/components/schemas/ExposedQuote"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "deliveryDate": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "type": "number",
+                          "description": "In sales units."
+                        },
+                        "substituteFor": {
+                          "type": "string",
+                          "description": "Only if Valio lists productId as a substitute for this product."
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "mandateId",
+                  "deliveryDate",
+                  "lines"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotes/{id}": {
+      "get": {
+        "summary": "Read a quote",
+        "description": "As an agent sees it, with Valio's signature.",
+        "tags": [
+          "Quote"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quote": {
+                      "$ref": "#/components/schemas/ExposedQuote"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Quote id."
+          }
+        ]
+      }
+    },
+    "/api/quotes/{id}/views": {
+      "get": {
+        "summary": "Demo: a quote as Valio holds it and as an agent sees it",
+        "description": "Shows what the exposure policy withholds. Refused in production, because the internal side is confidential.",
+        "tags": [
+          "Demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "internal": {
+                      "type": "object"
+                    },
+                    "agent": {
+                      "$ref": "#/components/schemas/ExposedQuote"
+                    },
+                    "signatureValid": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Quote id, or `latest`."
+          }
+        ]
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "summary": "Place an order against a quote",
+        "description": "The mandate decides: confirmed, pending_approval or rejected, with reasons. Needs an unexpired, fulfillable quote whose signature still matches.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "201": {
+            "description": "The order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "$ref": "#/components/schemas/ExposedOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quoteId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "quoteId"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List orders",
+        "description": "Newest first.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ExposedOrder"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "confirmed",
+                "pending_approval",
+                "rejected"
+              ]
+            },
+            "description": "Filter."
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "summary": "Read an order",
+        "description": "Lets an agent poll an order waiting for approval.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "$ref": "#/components/schemas/ExposedOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Order id."
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}/decision": {
+      "post": {
+        "summary": "Human sign-off",
+        "description": "Approve or decline an order in pending_approval. Not exposed over MCP: approval stays human.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "$ref": "#/components/schemas/ExposedOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Order id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "decline"
+                    ]
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "decidedBy"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandates": {
+      "get": {
+        "summary": "List mandates",
+        "description": "What each buyer has authorised an agent to decide alone.",
+        "tags": [
+          "Mandate"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Mandate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandates/{id}": {
+      "get": {
+        "summary": "Read a mandate",
+        "description": "",
+        "tags": [
+          "Mandate"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Mandate id."
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Change a mandate",
+        "description": "The buyer edits limits and rules. Every change is written to the decision record. Not exposed over MCP.",
+        "tags": [
+          "Mandate"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Mandate id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changedBy": {
+                    "type": "string"
+                  },
+                  "autoApproveLimitEur": {
+                    "type": "number"
+                  },
+                  "maxOrderEur": {
+                    "type": "number"
+                  },
+                  "blockedAllergens": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "minDeliveryReliability": {
+                    "oneOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requireConfirmedStock": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "changedBy"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "summary": "Decision record",
+        "description": "Plain-language events, newest first.",
+        "tags": [
+          "Audit"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this order and the quote it came from."
+          },
+          {
+            "name": "mandateId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this mandate."
+          }
+        ]
+      }
+    },
+    "/api/audit/verify": {
+      "get": {
+        "summary": "Verify the decision record's hash chain",
+        "description": "Re-computes every hash. valid=false names the first event that was changed, removed or reordered.",
+        "tags": [
+          "Audit"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}/verify": {
+      "get": {
+        "summary": "Stored live-web check",
+        "description": "No live call.",
+        "tags": [
+          "Verification"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verification": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Verification"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Product id."
+          }
+        ]
+      },
+      "post": {
+        "summary": "Check a product against the live web",
+        "description": "Oxylabs search and scrape, a model extracts statements, code keeps only quotes that are on the page. Reused for 24 hours; takes up to two minutes.",
+        "tags": [
+          "Verification"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verification": {
+                      "$ref": "#/components/schemas/Verification"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Product id."
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "true to ignore a stored check."
+          }
+        ]
+      }
+    },
+    "/api/demo/reset": {
+      "post": {
+        "summary": "Demo: clear quotes, orders and the decision record",
+        "description": "Starts a new hash chain. Refused in production unless ALLOW_DEMO_RESET=true.",
+        "tags": [
+          "Demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo/tamper": {
+      "post": {
+        "summary": "Demo: edit an old decision-record entry",
+        "description": "Shows the hash chain catching it. Refused in production unless ALLOW_DEMO_RESET=true.",
+        "tags": [
+          "Demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tamperedEventId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp": {
+      "post": {
+        "summary": "MCP server (Streamable HTTP, stateless)",
+        "tags": [
+          "MCP"
+        ],
+        "description": "JSON-RPC 2.0. Methods: initialize, ping, tools/list, tools/call. Tools: search_products, request_offers, create_quote, place_order, get_order_status, verify_product, get_mandate. There is no approve tool. Connect: `claude mcp add --transport http valio-aimo http://localhost:3000/api/mcp`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "A JSON-RPC 2.0 request, notification, or a batch (array) of them."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Notification accepted"
+          },
+          "403": {
+            "description": "Origin not allowed"
+          },
+          "400": {
+            "description": "Not JSON"
+          }
+        }
+      },
+      "get": {
+        "summary": "Not supported",
+        "tags": [
+          "MCP"
+        ],
+        "description": "The endpoint is stateless, so there is no server-initiated stream.",
+        "responses": {
+          "405": {
+            "description": "Method not allowed"
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "summary": "Valio's public keys",
+        "description": "Ed25519 (JWK). Verify a quote's signature over its canonical terms with the key whose kid equals signature.keyId.",
+        "tags": [
+          "Trust"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Jwks"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Body of every non-2xx response."
+      },
+      "Mandate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "buyerName": {
+            "type": "string"
+          },
+          "agentName": {
+            "type": "string"
+          },
+          "autoApproveLimitEur": {
+            "type": "number",
+            "description": "Orders up to this total (ex VAT) are confirmed without a human."
+          },
+          "maxOrderEur": {
+            "type": "number",
+            "description": "Orders above this are rejected. Between the two limits a human must approve."
+          },
+          "blockedAllergens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "minDeliveryReliability": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "0-1. A product delivered in full less often needs a human."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requireConfirmedStock": {
+            "type": "boolean",
+            "description": "Terminal stock (supplier ships it, quantity unknown) needs a human."
+          }
+        },
+        "required": [
+          "id",
+          "buyerName",
+          "agentName",
+          "autoApproveLimitEur",
+          "maxOrderEur",
+          "blockedAllergens",
+          "minDeliveryReliability",
+          "requireConfirmedStock"
+        ],
+        "description": "What the buyer has authorised the agent to decide alone."
+      },
+      "StockView": {
+        "type": "object",
+        "properties": {
+          "canFill": {
+            "type": "boolean"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "supplier_unconfirmed",
+              "unknown"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ample",
+              "limited",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "canFill",
+          "confidence",
+          "level"
+        ],
+        "description": "Stock as an agent sees it. The quantity is never exposed."
+      },
+      "ExposedQuoteLine": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "In sales units."
+          },
+          "salesUnit": {
+            "type": "string"
+          },
+          "unitPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitPriceWithTax": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparisonPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparisonUnit": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "KG",
+                  "L"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lineTotal": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lineTotalWithTax": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availableDate": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closingTime": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Order cut-off for this delivery."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logisticModel": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Stock",
+                  "Terminal"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fulfillable": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "substitutes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isSubstitute": {
+            "type": "boolean"
+          },
+          "substituteFor": {
+            "type": "string"
+          },
+          "stock": {
+            "$ref": "#/components/schemas/StockView"
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "quantity",
+          "salesUnit",
+          "fulfillable",
+          "issues",
+          "stock"
+        ]
+      },
+      "Signature": {
+        "type": "object",
+        "properties": {
+          "alg": {
+            "type": "string",
+            "enum": [
+              "EdDSA"
+            ]
+          },
+          "keyId": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "description": "Base64url Ed25519 signature over the canonical offer terms."
+          }
+        },
+        "required": [
+          "alg",
+          "keyId",
+          "value"
+        ]
+      },
+      "ExposedQuote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string"
+          },
+          "deliveryDate": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExposedQuoteLine"
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "Ex VAT."
+          },
+          "totalWithTax": {
+            "type": "number"
+          },
+          "fulfillable": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Prices are held until this time."
+          },
+          "signature": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Signature"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "mandateId",
+          "deliveryDate",
+          "currency",
+          "lines",
+          "total",
+          "totalWithTax",
+          "fulfillable",
+          "createdAt",
+          "expiresAt",
+          "signature"
+        ],
+        "description": "A fixed-price offer. The signature covers the commercial terms (see /.well-known/jwks.json)."
+      },
+      "ExposedOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "quoteId": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending_approval",
+              "rejected"
+            ]
+          },
+          "policyReasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Why the mandate sent the order to a human or rejected it."
+            }
+          },
+          "deliveryDate": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExposedQuoteLine"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "totalWithTax": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decidedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionNote": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "quoteId",
+          "mandateId",
+          "status",
+          "policyReasons",
+          "lines",
+          "total"
+        ]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "nameFi": {
+            "type": "string"
+          },
+          "nameEn": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salesUnit": {
+            "type": "string"
+          },
+          "baseUnit": {
+            "type": "string"
+          },
+          "allowedLotSize": {
+            "type": "number"
+          },
+          "allergensContain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allergensMayContain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allergensFreeFrom": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "substitutes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deliveryReliability": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "co2PerKg": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Product-group average, not a measurement."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "similarity": {
+            "type": "number",
+            "description": "Fused keyword and semantic rank score; comparable only within one result list."
+          }
+        },
+        "required": [
+          "id",
+          "nameFi",
+          "salesUnit"
+        ],
+        "description": "Static catalog data: no price, no stock."
+      },
+      "PurchaseRequest": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "amountUnit": {
+            "type": "string",
+            "enum": [
+              "L",
+              "KG",
+              "unit"
+            ]
+          },
+          "deliveryDate": {
+            "type": "string"
+          },
+          "requiredClaims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "product",
+          "amount",
+          "amountUnit",
+          "deliveryDate",
+          "requiredClaims"
+        ]
+      },
+      "OfferLine": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "salesUnit": {
+            "type": "string"
+          },
+          "unitPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lineTotal": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amountCovered": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Litres or kilos this line covers."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "substituteFor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "quantity",
+          "salesUnit"
+        ]
+      },
+      "Offer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cheapest",
+                "most_reliable",
+                "lowest_co2",
+                "split",
+                "substitute"
+              ]
+            }
+          },
+          "label": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferLine"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "reliability": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Lowest delivery reliability among the lines, 0-1."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "co2PerKg": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "logisticModels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "Stock",
+                "Terminal"
+              ]
+            }
+          },
+          "isSplit": {
+            "type": "boolean"
+          },
+          "isSubstitute": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kinds",
+          "label",
+          "lines",
+          "total",
+          "isSplit",
+          "isSubstitute",
+          "summary"
+        ],
+        "description": "A complete way to fill the request."
+      },
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salesUnit": {
+            "type": "string"
+          },
+          "amountPerUnit": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparisonPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank": {
+            "type": "integer"
+          },
+          "fulfillable": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "rank",
+          "fulfillable",
+          "reasons"
+        ],
+        "description": "A shortlisted product, priced live."
+      },
+      "RequestResult": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "interpreted": {
+                "type": "string"
+              },
+              "picked": {
+                "type": "string"
+              }
+            },
+            "description": "Which open-weights model did each language step."
+          },
+          "excludedByMandate": {
+            "type": "integer",
+            "description": "Matching products hidden because they contain a blocked allergen."
+          },
+          "interpreted": {
+            "$ref": "#/components/schemas/PurchaseRequest"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Offer"
+            }
+          },
+          "quote": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExposedQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "models",
+          "interpreted",
+          "candidates",
+          "offers",
+          "quote",
+          "notes"
+        ]
+      },
+      "VerifiedStatement": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "enum": [
+              "allergen",
+              "label",
+              "ingredient",
+              "origin"
+            ]
+          },
+          "stance": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "contains",
+                  "may_contain",
+                  "free_from"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allergen": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "GS1 allergen code."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string",
+            "description": "A passage copied from the page. Code checked that it appears in the page text."
+          },
+          "sourceUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "evidence",
+          "sourceUrl"
+        ]
+      },
+      "Verification": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "contradiction",
+              "no_evidence",
+              "unreadable"
+            ]
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerifiedStatement"
+            }
+          },
+          "contradictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "requestId": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "readable": {
+                  "type": "boolean"
+                },
+                "note": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "searchRequestId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "productId",
+          "status",
+          "statements",
+          "contradictions",
+          "sources",
+          "summary"
+        ]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "human",
+              "system"
+            ]
+          },
+          "action": {
+            "type": "string"
+          },
+          "mandateId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quoteId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "orderId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "description": "One plain-language sentence: what happened and why."
+          },
+          "data": {
+            "type": "object"
+          },
+          "hash": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "SHA-256 over the previous hash and this event."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prevHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "action",
+          "summary"
+        ]
+      },
+      "ChainStatus": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "checked": {
+            "type": "integer"
+          },
+          "brokenAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "head": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Newest hash. Publish it elsewhere to also expose removed events."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "valid",
+          "checked"
+        ]
+      },
+      "Jwks": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kty": {
+                  "type": "string"
+                },
+                "crv": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "string"
+                },
+                "kid": {
+                  "type": "string"
+                },
+                "use": {
+                  "type": "string"
+                },
+                "alg": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      }
+    }
+  }
+}

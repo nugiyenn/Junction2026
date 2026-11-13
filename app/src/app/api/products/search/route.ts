@@ -26,7 +26,7 @@ const Query = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { q, limit, mandateId, ...filters } = Query.parse(Object.fromEntries(request.nextUrl.searchParams));
-    const products = await searchProducts(q, filters, limit);
+    const { products, semantic } = await searchProducts(q, filters, limit);
 
     await logAudit({
       actor: 'agent',
@@ -34,11 +34,13 @@ export async function GET(request: NextRequest) {
       mandateId: mandateId ?? null,
       quoteId: null,
       orderId: null,
-      summary: `Searched the catalog for "${q}" and got ${products.length} product(s).`,
-      data: { q, ...filters, productIds: products.map((p) => p.id) },
+      summary:
+        `Searched the catalog for "${q}" and got ${products.length} product(s)` +
+        `${semantic ? '.' : ' (keyword search only: semantic search unavailable).'}`,
+      data: { q, ...filters, semantic, productIds: products.map((p) => p.id) },
     });
 
-    return Response.json({ products });
+    return Response.json({ products, semantic });
   } catch (err) {
     return errorResponse(err);
   }

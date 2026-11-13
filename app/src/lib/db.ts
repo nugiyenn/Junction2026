@@ -15,8 +15,13 @@ export function getPool(): Pool {
   const connectionString = process.env.AIVEN_DATABASE_URL;
   if (!connectionString) throw new Error('Missing AIVEN_DATABASE_URL: cannot connect to aiven');
 
+  // pg treats `sslmode=require` in the URL as full certificate verification, which fails on
+  // Aiven's own CA and overrides the `ssl` option below, so drop it and keep the connection encrypted.
+  const url = new URL(connectionString);
+  url.searchParams.delete('sslmode');
+
   global.pgPool = new Pool({
-    connectionString,
+    connectionString: url.toString(),
     ssl: { rejectUnauthorized: false },
     max: 3, // one pool per serverless instance; keep small to stay under Aiven connection limits
   });

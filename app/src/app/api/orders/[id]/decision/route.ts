@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { exposeOrder } from '@/lib/exposure';
 import { errorResponse } from '@/lib/http';
 import { decideOrder } from '@/lib/purchasing';
 
@@ -16,7 +17,7 @@ export async function POST(request: Request, ctx: RouteContext<'/api/orders/[id]
   try {
     const id = z.uuid().parse((await ctx.params).id);
     const { decision, decidedBy, note } = Body.parse(await request.json());
-    return Response.json({ order: await decideOrder(id, decision, decidedBy, note) });
+    return Response.json({ order: exposeOrder(await decideOrder(id, decision, decidedBy, note)) });
   } catch (err) {
     return errorResponse(err);
   }
