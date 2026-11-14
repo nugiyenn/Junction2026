@@ -710,7 +710,6 @@ export interface InterpretationCheck {
 }
 // --- intake ---
 
-<<<<<<< HEAD
 /** One thing to buy that the vision model read off a photo. Nothing is quoted or ordered from it: a person taps it to use it. */
 export interface IntakeLine {
   /** The line as written, e.g. "20 kg granola, no nuts". */
@@ -809,7 +808,7 @@ export interface AutonomyAcceptRequest {
 export interface AutonomyAcceptResponse {
   mandate: Mandate;
   suggestion: AutonomySuggestion;
-=======
+}
 
 // --- receipts ---
 
@@ -898,5 +897,4 @@ export interface ReceiptCheck {
   /** `skip` is neither a pass nor a failure: there was nothing to check (no human decision, or it was not signed). */
   status: 'pass' | 'fail' | 'skip';
   detail: string;
->>>>>>> night-d
 }
