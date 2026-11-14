@@ -9,6 +9,7 @@ import { signQuote, verifyQuoteSignature } from '@/lib/signing';
 import { getVerifications } from '@/lib/verify';
 import { getAvailability, getPrices } from '@/lib/valio';
 import type {
+  ApproverSignature,
   Mandate,
   OfferPreference,
   Order,
@@ -440,17 +441,30 @@ export async function placeOrder(quoteId: string): Promise<Order> {
   return order;
 }
 
-/** A human approves or declines an order that is waiting for sign-off. */
+/**
+ * A human approves or declines an order that is waiting for sign-off. `approval` is the device signature over the
+ * decision, stored beside it so the receipt can show it; the caller has already checked it matches this decision.
+ */
 export async function decideOrder(
   orderId: string,
   decision: 'approve' | 'decline',
   decidedBy: string,
-  note?: string
+  note?: string,
+  approval?: ApproverSignature
 ): Promise<Order> {
   const { rows } = await getPool().query<OrderRow>(
-    `UPDATE orders SET status = $2, decided_by = $3, decided_at = now(), decision_note = $4
+    `UPDATE orders SET status = $2, decided_by = $3, decided_at = now(), decision_note = $4,
+       decision_payload = $5, decision_signature = $6, decision_public_key = $7
      WHERE id = $1 AND status = 'pending_approval' RETURNING *`,
-    [orderId, decision === 'approve' ? 'confirmed' : 'rejected', decidedBy, note ?? null]
+    [
+      orderId,
+      decision === 'approve' ? 'confirmed' : 'rejected',
+      decidedBy,
+      note ?? null,
+      approval ? JSON.stringify(approval.payload) : null,
+      approval?.value ?? null,
+      approval ? JSON.stringify(approval.publicKey) : null,
+    ]
   );
   if (rows.length === 0) {
     const existing = await getOrder(orderId); // throws 404 when the order does not exist
@@ -467,7 +481,7 @@ export async function decideOrder(
     summary:
       `${decidedBy} ${decision === 'approve' ? 'approved' : 'declined'} the order for ` +
       `${order.total.toFixed(2)} ${order.currency} ex VAT.${note ? ` Note: ${note}` : ''}`,
-    data: { decidedBy, note: note ?? null },
+    data: { decidedBy, note: note ?? null, signed: Boolean(approval) },
   });
 
   return order;

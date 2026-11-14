@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { canonicalJson, eventHashInput } from './receipt-canon.ts';
+
+export { canonicalJson };
 
 // Pure hash-chain logic for the audit trail. Each event's hash covers the previous event's hash and its own
 // content, so changing, removing or reordering any earlier event breaks every hash after it.
@@ -32,28 +35,8 @@ export interface ChainStatus {
   head: string | null;
 }
 
-/** JSON with object keys sorted, so the same content always gives the same text. */
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
-}
-
 export function eventHash(prevHash: string | null, event: ChainEvent): string {
-  const body = canonicalJson({
-    at: event.at,
-    actor: event.actor,
-    action: event.action,
-    mandateId: event.mandateId,
-    quoteId: event.quoteId,
-    orderId: event.orderId,
-    summary: event.summary,
-    data: event.data,
-  });
-  return createHash('sha256').update(`${prevHash ?? 'GENESIS'}|${body}`).digest('hex');
+  return createHash('sha256').update(eventHashInput(prevHash, event)).digest('hex');
 }
 
 /** Rows must be in the order they were written. Stops at the first event that does not verify. */

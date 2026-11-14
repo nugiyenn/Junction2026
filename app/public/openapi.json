@@ -861,6 +861,81 @@
                   },
                   "note": {
                     "type": "string"
+                  },
+                  "signature": {
+                    "type": "object",
+                    "description": "Optional. The decision signed by the approver's device key; refused with 400 if it does not match this decision or does not verify. Without it the decision is recorded as not signed.",
+                    "properties": {
+                      "payload": {
+                        "type": "object",
+                        "properties": {
+                          "orderId": {
+                            "type": "string"
+                          },
+                          "decision": {
+                            "type": "string",
+                            "enum": [
+                              "approve",
+                              "decline"
+                            ]
+                          },
+                          "decidedBy": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "signedAt": {
+                            "type": "string",
+                            "description": "The device's clock."
+                          }
+                        },
+                        "required": [
+                          "orderId",
+                          "decision",
+                          "decidedBy",
+                          "note",
+                          "signedAt"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "publicKey": {
+                        "type": "object",
+                        "properties": {
+                          "kty": {
+                            "type": "string"
+                          },
+                          "crv": {
+                            "type": "string"
+                          },
+                          "x": {
+                            "type": "string"
+                          },
+                          "y": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kty",
+                          "crv",
+                          "x"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "payload",
+                      "value",
+                      "publicKey"
+                    ]
                   }
                 },
                 "required": [
@@ -874,6 +949,48 @@
         "security": [
           {
             "approverKey": []
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}/receipt": {
+      "get": {
+        "summary": "Signed receipt",
+        "description": "A bundle for one order that anyone can check without trusting this server's answer: the order and quote as an agent sees them, the mandate that applied, the policy outcome, the human decision with the approver's device signature when there is one, the audit events and the chain head, signed by Valio. Checked offline at /verify.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptBundle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Order id."
           }
         ]
       }
@@ -3420,6 +3537,272 @@
           "detail"
         ],
         "description": "A second model reads the request independently. Code compares the amount, unit and delivery date and reports any disagreement. A warning, not a mandate rule."
+      },
+      "ApproverSignature": {
+        "type": "object",
+        "description": "The decision signed by the approver's device key (ECDSA P-256, SHA-256). A device key is not an identity: no key registry exists.",
+        "properties": {
+          "alg": {
+            "type": "string",
+            "enum": [
+              "ES256"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "orderId": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "approve",
+                  "decline"
+                ]
+              },
+              "decidedBy": {
+                "type": "string"
+              },
+              "note": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "signedAt": {
+                "type": "string",
+                "description": "The device's clock."
+              }
+            },
+            "required": [
+              "orderId",
+              "decision",
+              "decidedBy",
+              "note",
+              "signedAt"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "description": "Base64url, 64 bytes (r then s), over the canonical JSON of `payload`."
+          },
+          "publicKey": {
+            "type": "object",
+            "properties": {
+              "kty": {
+                "type": "string"
+              },
+              "crv": {
+                "type": "string"
+              },
+              "x": {
+                "type": "string"
+              },
+              "y": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kty",
+              "crv",
+              "x"
+            ]
+          }
+        },
+        "required": [
+          "alg",
+          "payload",
+          "value",
+          "publicKey"
+        ]
+      },
+      "ReceiptBundle": {
+        "type": "object",
+        "description": "A signed record of one order. `signature` is Valio's Ed25519 signature over the canonical JSON (keys sorted) of everything else. Check it at /verify, or yourself against /.well-known/jwks.json.",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "exportedAt": {
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/ExposedOrder"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/ExposedQuote"
+          },
+          "mandate": {
+            "type": "object",
+            "description": "The policy-relevant mandate fields as they were when the receipt was made, with the SHA-256 (hex) of their canonical JSON.",
+            "properties": {
+              "snapshot": {
+                "type": "object"
+              },
+              "hash": {
+                "type": "string"
+              },
+              "capturedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "snapshot",
+              "hash",
+              "capturedAt"
+            ]
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "auto_approve",
+                      "needs_approval",
+                      "reject"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "outcome",
+              "reasons"
+            ]
+          },
+          "decision": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "declined"
+                    ]
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  },
+                  "decidedAt": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "approverSignature": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ApproverSignature"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "decidedBy",
+                  "decidedAt",
+                  "note",
+                  "approverSignature"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "array",
+                "description": "Oldest first. Entries with `omitted: true` are other orders' events kept only as hash links.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "linked": {
+                "type": "boolean",
+                "description": "True when every event between the first and last of this order is present, in full or as a stub."
+              },
+              "head": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "hash": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "events",
+              "linked",
+              "head"
+            ]
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Signature"
+          }
+        },
+        "required": [
+          "version",
+          "exportedAt",
+          "order",
+          "quote",
+          "mandate",
+          "policy",
+          "decision",
+          "audit",
+          "signature"
+        ]
       }
     },
     "securitySchemes": {

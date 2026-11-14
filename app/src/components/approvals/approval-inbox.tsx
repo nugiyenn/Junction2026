@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { call, clock, eur } from '@/components/flow/api';
 import { Page, Panel, Pill } from '@/components/page';
+import { signedDecision } from '@/components/verify/device-key';
+import { ReceiptLink } from '@/components/verify/receipt-link';
 import type { ExposedOrder, Mandate, Order } from '@/types';
 
 type Filter = 'pending_approval' | 'all';
@@ -54,7 +56,13 @@ export function ApprovalInbox() {
   async function decide(order: ExposedOrder, decision: 'approve' | 'decline') {
     setBusy(order.id);
     try {
-      await call(`/api/orders/${order.id}/decision`, { decision, decidedBy: approver, note: note[order.id]?.trim() || undefined });
+      const text = note[order.id]?.trim() || undefined;
+      await call(`/api/orders/${order.id}/decision`, {
+        decision,
+        decidedBy: approver,
+        note: text,
+        ...(await signedDecision(order.id, decision, approver, text)),
+      });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -88,6 +96,7 @@ export function ApprovalInbox() {
           Approver
         </label>
         <Input id="approver" className="h-11 max-w-xs flex-1" value={approver} onChange={(e) => setApprover(e.target.value)} />
+        <span className="text-xs text-muted-foreground">Decisions are signed with this browser&apos;s device key.</span>
       </Panel>
 
       {error && (
@@ -173,6 +182,7 @@ export function ApprovalInbox() {
                   </p>
                 )
               )}
+              {o.status !== 'pending_approval' && <ReceiptLink id={o.id} />}
             </Panel>
           );
         })}

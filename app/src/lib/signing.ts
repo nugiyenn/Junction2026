@@ -46,6 +46,12 @@ export async function verifyQuoteSignature(quote: Quote): Promise<boolean> {
   return verifyPayload(offerPayload(quote), quote.signature.value, rows[0].public_pem);
 }
 
+/** A function that signs text with the current key, for receipts. The key is read once, so the function itself is synchronous. */
+export async function textSigner(): Promise<(text: string) => { keyId: string; value: string }> {
+  const key = await currentKey();
+  return (text) => ({ keyId: key.kid, value: signPayload(text, key.private_pem) });
+}
+
 /** Every public key, in the form published at /.well-known/jwks.json. */
 export async function publicKeys() {
   await currentKey();
