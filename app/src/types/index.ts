@@ -443,3 +443,83 @@ export interface AuditEvent {
 export interface ApiError {
   error: string;
 }
+
+// --- stats ---
+
+/** pending = still waiting for a person. rejected = stopped by the mandate. declined = a person said no. */
+export type OrderOutcome = 'auto_approved' | 'approved' | 'declined' | 'rejected' | 'pending';
+
+/** One past order, from the real `orders` table or the synthetic `order_history` table. */
+export interface StatsOrder {
+  id: string;
+  /** ISO 8601. */
+  at: string;
+  mandateId: string;
+  outcome: OrderOutcome;
+  /** True for generated demo history, false for orders placed through the gateway. */
+  synthetic: boolean;
+  /** EUR ex VAT. */
+  total: number;
+  /** Seconds from the order waiting for a person to their decision. Null when no person decided. */
+  decisionSeconds: number | null;
+  /** Mean kg CO2-eq per kg over the lines that have a footprint. */
+  avgCo2: number | null;
+  /** Mean historical delivery reliability (0-1) over the lines that have one. */
+  avgReliability: number | null;
+  lines: { productId: string; name: string; total: number }[];
+}
+
+export interface StatsWeek {
+  /** Monday of the week (UTC), YYYY-MM-DD. */
+  week: string;
+  /** Confirmed spend (auto-approved and approved orders), EUR ex VAT. */
+  spend: number;
+  /** The part of `spend` that comes from synthetic demo history. */
+  syntheticSpend: number;
+  orders: number;
+}
+
+export interface StatsTopProduct {
+  productId: string;
+  name: string;
+  spend: number;
+  orders: number;
+}
+
+/** What both stores compute: the same numbers from Postgres or from ClickHouse. */
+export interface BuyerStatsCore {
+  totals: { orders: number; realOrders: number; syntheticOrders: number; confirmedSpend: number };
+  weeks: StatsWeek[];
+  outcomes: Record<OrderOutcome, number>;
+  avgDecisionSeconds: number | null;
+  avgCo2PerKg: number | null;
+  avgReliability: number | null;
+  topProducts: StatsTopProduct[];
+  /** Over all orders, whatever their outcome. */
+  orderSize: { median: number; p90: number } | null;
+}
+
+export interface InfraStatus {
+  name: 'kafka' | 'clickhouse';
+  configured: boolean;
+  /** Null when nothing has been checked: not configured, or no attempt yet. */
+  ok: boolean | null;
+  detail: string;
+}
+
+/** Decision events that arrived in ClickHouse through Aiven Kafka. */
+export interface StatsStream {
+  events: number;
+  latestAt: string | null;
+  byAction: Record<string, number>;
+}
+
+export interface BuyerStats extends BuyerStatsCore {
+  mandateId: string;
+  buyerName: string;
+  generatedAt: string;
+  source: 'postgres' | 'clickhouse';
+  /** Null unless ClickHouse answered and its event table could be read. */
+  stream: StatsStream | null;
+  infra: InfraStatus[];
+}

@@ -12,6 +12,7 @@ const LINKS = [
   { href: '/approvals', label: 'Approvals' },
   { href: '/exposure', label: 'What agents see' },
   { href: '/audit', label: 'Decision record' },
+  { href: '/stats', label: 'Buyer stats' },
 ];
 
 /** Sidebar on wide screens, a scrolling bar on phones. The Approvals link shows how many orders wait for a person. */

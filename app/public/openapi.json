@@ -922,6 +922,69 @@
         ]
       }
     },
+    "/api/stats": {
+      "get": {
+        "summary": "Buyer statistics",
+        "description": "How one buyer's orders behave over time: weekly spend, outcomes, time to human decision, carbon, delivery reliability, top products, order size. Answered from ClickHouse when configured and reachable, otherwise Postgres (`source` says which). Includes real orders and clearly separated synthetic demo history; `infra` reports Kafka and ClickHouse as configured, healthy or not.",
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "mandateId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "postgres forces the Postgres answer.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "postgres"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerStats"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown mandate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit/verify": {
       "get": {
         "summary": "Verify the decision record's hash chain",
@@ -2227,6 +2290,127 @@
           "sources",
           "summary"
         ]
+      },
+      "BuyerStats": {
+        "type": "object",
+        "required": [
+          "mandateId",
+          "buyerName",
+          "generatedAt",
+          "source",
+          "totals",
+          "weeks",
+          "outcomes",
+          "topProducts",
+          "infra"
+        ],
+        "properties": {
+          "mandateId": {
+            "type": "string"
+          },
+          "buyerName": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "postgres",
+              "clickhouse"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "description": "realOrders were placed through the gateway; syntheticOrders are generated demo history. confirmedSpend is EUR ex VAT.",
+            "properties": {
+              "orders": { "type": "integer" },
+              "realOrders": { "type": "integer" },
+              "syntheticOrders": { "type": "integer" },
+              "confirmedSpend": { "type": "number" }
+            }
+          },
+          "weeks": {
+            "type": "array",
+            "description": "Confirmed spend per week (Monday, UTC); syntheticSpend is the demo-history part.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "week": { "type": "string" },
+                "spend": { "type": "number" },
+                "syntheticSpend": { "type": "number" },
+                "orders": { "type": "integer" }
+              }
+            }
+          },
+          "outcomes": {
+            "type": "object",
+            "description": "Order counts by outcome.",
+            "properties": {
+              "auto_approved": { "type": "integer" },
+              "approved": { "type": "integer" },
+              "declined": { "type": "integer" },
+              "rejected": { "type": "integer" },
+              "pending": { "type": "integer" }
+            }
+          },
+          "avgDecisionSeconds": {
+            "type": "number",
+            "nullable": true
+          },
+          "avgCo2PerKg": {
+            "type": "number",
+            "nullable": true
+          },
+          "avgReliability": {
+            "type": "number",
+            "nullable": true
+          },
+          "topProducts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": { "type": "string" },
+                "name": { "type": "string" },
+                "spend": { "type": "number" },
+                "orders": { "type": "integer" }
+              }
+            }
+          },
+          "orderSize": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "median": { "type": "number" },
+              "p90": { "type": "number" }
+            }
+          },
+          "stream": {
+            "type": "object",
+            "nullable": true,
+            "description": "Decision events that arrived in ClickHouse through Kafka. Null unless ClickHouse answered.",
+            "properties": {
+              "events": { "type": "integer" },
+              "latestAt": { "type": "string", "nullable": true },
+              "byAction": { "type": "object", "additionalProperties": { "type": "integer" } }
+            }
+          },
+          "infra": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "enum": ["kafka", "clickhouse"] },
+                "configured": { "type": "boolean" },
+                "ok": { "type": "boolean", "nullable": true },
+                "detail": { "type": "string" }
+              }
+            }
+          }
+        }
       },
       "AuditEvent": {
         "type": "object",
