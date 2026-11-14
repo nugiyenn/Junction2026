@@ -709,3 +709,27 @@ export interface InterpretationCheck {
   detail: string;
 }
 
+
+// --- intake ---
+
+/** One thing to buy that the vision model read off a photo. Nothing is quoted or ordered from it: a person taps it to use it. */
+export interface IntakeLine {
+  /** The line as written, e.g. "20 kg granola, no nuts". */
+  text: string;
+  /** Short English product description, e.g. "granola". */
+  product: string;
+  /** The number written, null when the line has none. */
+  amount: number | null;
+  /** Same units as PurchaseRequest ("5 cases" and "3 kpl" are "unit"); null when none is written. */
+  amountUnit: 'L' | 'KG' | 'unit' | null;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+/** POST /api/intake answer. */
+export interface IntakeResult {
+  lines: IntakeLine[];
+  /** One short sentence about the photo (unreadable, nothing to buy, cut to 12 lines, ...). Empty when there is nothing to say. */
+  note: string;
+  /** The model that read the image, as sent to the API. */
+  readBy: string;
+}

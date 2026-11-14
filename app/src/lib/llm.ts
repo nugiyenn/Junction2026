@@ -264,6 +264,8 @@ const nemotronModelId = () => process.env.NEMOTRON_MODEL || DEFAULT_NEMOTRON_MOD
 export interface NemotronOptions {
   timeoutMs?: number;
   maxTokens?: number;
+  /** A data URL (image/jpeg, png or webp): the user turn then carries it as an image part after the text. */
+  imageUrl?: string;
   /** Test seams: a mocked transport and a sleep that does not wait. */
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -306,7 +308,12 @@ export async function runNemotronStructured<S extends z.ZodType>(
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: `${instructions}\nReturn ONLY one raw JSON object, no markdown fences, no commentary.` },
-      { role: 'user', content: input },
+      {
+        role: 'user',
+        content: options.imageUrl
+          ? [{ type: 'text', text: input }, { type: 'image_url', image_url: { url: options.imageUrl } }]
+          : input,
+      },
     ],
   });
 
@@ -341,6 +348,21 @@ export async function runNemotronStructured<S extends z.ZodType>(
     if (!raw) throw new Error(`Empty response from Nemotron: ${JSON.stringify(completion).slice(0, 300)}`);
     return parseJsonAnswer(raw, schema, 'Nemotron');
   }
+}
+
+/**
+ * Nemotron reading an image (a data URL), validated against `schema`: the vision side of the same model.
+ * Same retries and JSON mode as runNemotronStructured; 40 s deadline. `model` is the id the call was sent to.
+ */
+export async function runNemotronVision<S extends z.ZodType>(
+  instructions: string,
+  prompt: string,
+  imageUrl: string,
+  schema: S,
+  options: Omit<NemotronOptions, 'imageUrl'> = {}
+): Promise<{ output: z.output<S>; model: string }> {
+  const output = await runNemotronStructured(instructions, prompt, schema, { timeoutMs: 40_000, maxTokens: 1500, ...options, imageUrl });
+  return { output, model: nemotronModelId() };
 }
 
 /** The models the evaluation compares, by id. `requires` lists the env names a model needs before it can be called. */

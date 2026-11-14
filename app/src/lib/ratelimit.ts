@@ -18,6 +18,8 @@ export const LIMITS = {
   orders: { limit: fromEnv('RATE_LIMIT_ORDERS_PER_MIN', 30), windowSeconds: 60 },
   // Live web checks spend Oxylabs and model quota and are not tied to a mandate, so one shared counter.
   verify: { limit: fromEnv('RATE_LIMIT_VERIFY_PER_MIN', 12), windowSeconds: 60 },
+  // Photo reading spends vision-model quota and is not tied to a mandate: one shared counter.
+  intake: { limit: fromEnv('RATE_LIMIT_INTAKE_PER_MIN', 6), windowSeconds: 60 },
 } as const;
 
 export interface RateLimitResult {

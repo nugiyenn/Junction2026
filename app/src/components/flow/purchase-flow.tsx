@@ -20,6 +20,7 @@ import type {
   RequestResult,
 } from '@/types';
 import { call, clock, eur } from './api';
+import { Intake } from './intake';
 import { MandatePanel } from './mandate-panel';
 import { LiveChecksSummary, VerifyCheck } from './verify-check';
 
@@ -373,6 +374,13 @@ export function PurchaseFlow() {
           value={text}
           onChange={(e) => {
             setText(e.target.value);
+            setActiveScenario(null);
+          }}
+        />
+        <Intake
+          disabled={anyBusy}
+          onPick={(picked) => {
+            setText(picked);
             setActiveScenario(null);
           }}
         />
