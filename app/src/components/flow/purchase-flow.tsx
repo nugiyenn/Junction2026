@@ -19,6 +19,7 @@ import type {
   PolicyDecision,
   RequestResult,
 } from '@/types';
+import { ConfirmationLink } from '@/components/verify/confirmation-link';
 import { ReceiptLink } from '@/components/verify/receipt-link';
 import { signedDecision } from '@/components/verify/device-key';
 import { call, clock, eur } from './api';
@@ -602,6 +603,7 @@ export function PurchaseFlow() {
                       </p>
                     )}
                     {order.status !== 'pending_approval' && <ReceiptLink id={order.id} />}
+                    <ConfirmationLink id={order.id} />
                     {order.status === 'pending_approval' && (
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         <Input className="h-10 w-44 bg-card" value={approver} onChange={(e) => setApprover(e.target.value)} aria-label="Approver name" />

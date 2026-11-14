@@ -430,8 +430,12 @@ export function detectDeviations(
       // The closest usual amount; then the product ordered most often (a one-off accepted as normal does not outrank the weekly order).
       .sort((a, b) => Math.abs(a.median - amount) - Math.abs(b.median - amount) || b.orders - a.orders || (a.productId < b.productId ? -1 : 1));
     const partner = candidates[0];
+    // A replacement is not much smaller than what it replaces. A tenth of the usual amount is an extra item next to the weekly
+    // order, not a swap. A larger amount still replaces it: the product difference and the quantity are both findings.
+    const ratio = partner && partner.unit === unit && partner.median > 0 ? amount / partner.median : null;
+    const comparable = ratio === null || ratio >= o.ratioLow - EPS;
 
-    if (partner && product) {
+    if (partner && product && comparable) {
       taken.add(partner.productId);
       const usualProduct = products.get(partner.productId)!;
       const group = `swap:${l.productId}`;
@@ -457,6 +461,22 @@ export function detectDeviations(
       const q = quantityCheck(`quantity:${l.productId}`, name, partner, amount, unit, o);
       checks.push(q.check);
       if (q.finding) findings.push(q.finding);
+      continue;
+    }
+
+    // The same kind of product as a usual one, in a much smaller amount: next to the usual order, not instead of it.
+    if (partner && product && ratio !== null) {
+      if (baseline.seen.has(l.productId)) continue;
+      checks.push({
+        id: `new:${l.productId}`,
+        label: 'Extra item',
+        usual: `${partner.name}, usually ${amountText(partner.median, partner.unit)}`,
+        thisOrder: `${name}, ${amountText(amount, unit)}`,
+        result: 'info',
+        detail: 'Next to the usual order',
+        group: `new:${l.productId}`,
+        line: name,
+      });
       continue;
     }
 

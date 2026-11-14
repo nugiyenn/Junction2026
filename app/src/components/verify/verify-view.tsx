@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Page, Panel, Pill } from '@/components/page';
@@ -17,8 +17,11 @@ function pinnedKeys(text: string): PublicJwk[] | null {
   return Array.isArray(parsed.keys) ? parsed.keys : [parsed];
 }
 
-/** Checks a receipt in this browser. Nothing is sent to the server except the request for its public keys. */
-export function VerifyView() {
+/**
+ * Checks a receipt in this browser. Nothing is sent to the server except the request for its public keys, and, when the
+ * page is opened with `?order=<id>` (the QR code on an order confirmation), the request for that order's receipt.
+ */
+export function VerifyView({ orderId }: { orderId?: string }) {
   const [text, setText] = useState('');
   const [pinned, setPinned] = useState('');
   const [checks, setChecks] = useState<ReceiptCheck[] | null>(null);
@@ -26,19 +29,20 @@ export function VerifyView() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
+  const autoRan = useRef(false);
 
   const reset = () => {
     setChecks(null);
     setError(null);
   };
 
-  async function verify() {
+  async function verify(source = text) {
     reset();
     setBusy(true);
     try {
       let bundle: ReceiptBundle;
       try {
-        bundle = JSON.parse(text);
+        bundle = JSON.parse(source);
       } catch {
         throw new Error('That is not JSON. Paste a receipt downloaded from an order.');
       }
@@ -60,6 +64,35 @@ export function VerifyView() {
     }
   }
 
+  // Deep link from an order confirmation: load that order's receipt and run the same check as a pasted one.
+  useEffect(() => {
+    if (!orderId || autoRan.current) return;
+    autoRan.current = true;
+    (async () => {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/orders/${orderId}/receipt`);
+        const body = await res.text();
+        if (!res.ok) {
+          let message = `Could not load the receipt for order ${orderId.slice(0, 8)} (HTTP ${res.status}).`;
+          try {
+            message = JSON.parse(body).error ?? message;
+          } catch {
+            // not JSON: keep the plain message
+          }
+          throw new Error(message);
+        }
+        setText(body);
+        await verify(body);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setBusy(false);
+      }
+    })();
+    // verify reads only state setters and the pinned key, and this runs once per page load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
   /** Adds 1 to the order total, so a failure can be seen without editing JSON by hand. */
   function edit() {
     reset();
@@ -78,6 +111,11 @@ export function VerifyView() {
 
   return (
     <Page title="Verify a receipt">
+      {orderId && (
+        <p className="text-sm text-muted-foreground" data-testid="verify-order">
+          Verifying order <strong className="font-mono text-foreground">{orderId.slice(0, 8)}</strong> from its order confirmation. The receipt is loaded from this server and checked in this browser.
+        </p>
+      )}
       <Panel className="flex flex-col gap-3.5">
         <label htmlFor="bundle" className="text-sm font-medium">
           Receipt (JSON)
@@ -94,7 +132,7 @@ export function VerifyView() {
           spellCheck={false}
         />
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button className="h-11 px-5" onClick={verify} disabled={busy || !text.trim()}>
+          <Button className="h-11 px-5" onClick={() => verify()} disabled={busy || !text.trim()}>
             {busy ? 'Checking…' : 'Verify'}
           </Button>
           <input

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Inter } from "next/font/google";
+import Link from "next/link";
 import { AppNav } from "@/components/app-nav";
 import "./globals.css";
 
@@ -17,7 +18,7 @@ const barlow = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Trusted Trade Gateway",
+  title: "Agent order desk | Valio Aimo",
   description: "How a buyer's purchasing agent orders from Valio Aimo within its mandate",
 };
 
@@ -27,6 +28,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <AppNav />
         <main className="min-w-0 flex-1">{children}</main>
+        <footer className="border-t bg-white px-4 py-3 text-sm text-muted-foreground md:px-8">
+          <div className="mx-auto flex max-w-[90rem] flex-wrap items-center justify-between gap-2">
+            <span>Synthetic Valio data for Junction 2026</span>
+            <nav aria-label="Technology pages" className="flex gap-4">
+              <Link href="/stats" className="text-primary underline underline-offset-2 hover:text-petrol-dark">
+                Buyer stats
+              </Link>
+              <Link href="/models" className="text-primary underline underline-offset-2 hover:text-petrol-dark">
+                Models
+              </Link>
+            </nav>
+          </div>
+        </footer>
       </body>
     </html>
   );

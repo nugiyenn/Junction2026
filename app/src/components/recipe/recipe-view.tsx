@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { call, clock, eur } from '@/components/flow/api';
 import { Page, Panel, Pill, type Tone } from '@/components/page';
+import { ConfirmationLink } from '@/components/verify/confirmation-link';
 import { ReceiptLink } from '@/components/verify/receipt-link';
 import type { ExposedOrder, ExposedQuote, Mandate, PolicyDecision, RecipeLineMatch, RecipeMatchStatus, RecipeProduct, RecipeResult, RecipeUnit } from '@/types';
 
@@ -509,6 +510,7 @@ export function RecipeView() {
                   )}
                   {order.status === 'rejected' && order.policyReasons.length > 0 && <p className="text-[13px]">{order.policyReasons.join(' ')}</p>}
                   {order.status !== 'pending_approval' && <ReceiptLink id={order.id} />}
+                  <ConfirmationLink id={order.id} />
                 </div>
               )}
             </Panel>

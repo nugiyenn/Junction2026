@@ -8,7 +8,7 @@
 // (seeded pseudo-random, fixed delivery dates) and idempotent (deterministic ids, ON CONFLICT DO NOTHING). Only INSERTs
 // into `order_history`; no schema change.
 //
-//   node --conditions=react-server --env-file=.env.local scripts/seed-standing-orders.mts
+//   node --conditions=react-server --env-file=.env.local scripts/seed-standing-orders.mts [--replace]
 //
 // The hotel's milk is Valio skimmed milk 1 l ESL (469477), not the 10 l novobox (460396): the mock's fixed order cut-off
 // for the novobox has passed, so it cannot be quoted today and the demo orders could not use it.
@@ -78,7 +78,7 @@ const PROFILES: Profile[] = [
     dipFactor: 0.4,
     standing: [
       { productId: '468465', unitPrice: 1.17, perPack: 1, unit: 'L', packs: 120, everyWeeks: 1, exactShare: 0.3 }, // oat drink 1 l
-      { productId: '467857', unitPrice: 3.66, perPack: 0.35, unit: 'KG', packs: 43, everyWeeks: 1, exactShare: 0.3 }, // granola 350 g, free from nuts
+      { productId: '467857', unitPrice: 3.66, perPack: 0.35, unit: 'KG', packs: 57, everyWeeks: 1, exactShare: 0.3 }, // granola 350 g, free from nuts: about 20 kg a week, like the 'School, 20 kg granola' demo scenario
     ],
   },
 ];
@@ -98,9 +98,16 @@ const cents = (n: number) => Math.round(n * 100) / 100;
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
 
+// --replace: delete this script's own rows first (ids standing-<mandate>-<date>) and write them again. Use it after changing a profile.
+const replace = process.argv.includes('--replace');
+
 for (const p of PROFILES) {
   const rand = rng(`standing-${p.id}`);
   const rows: unknown[] = [];
+  if (replace) {
+    const del = await pool.query(`DELETE FROM order_history WHERE mandate_id = $1 AND id LIKE $2`, [p.id, `standing-${p.id}-%`]);
+    console.log(`${p.id}: ${del.rowCount} earlier standing orders removed.`);
+  }
 
   for (let w = WEEKS - 1; w >= 0; w--) {
     const delivery = LAST_MONDAY - w * 7 * DAY_MS + (p.weekday - 1) * DAY_MS;

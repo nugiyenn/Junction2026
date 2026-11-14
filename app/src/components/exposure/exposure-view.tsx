@@ -43,7 +43,7 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
   }, [quoteId]);
 
   return (
-    <Page title="What agents see">
+    <Page title="Agent view">
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Could not load the quote</AlertTitle>

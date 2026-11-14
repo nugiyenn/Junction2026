@@ -292,6 +292,40 @@ describe('new items', () => {
   });
 });
 
+describe('an extra item next to the usual order is not a swap', () => {
+  // A hotel that orders 1,000 L of skimmed milk every Monday also tops up 100 L of lactose-free milk.
+  const lactoseFree = product('lf', 'Valio lactose free semi skimmed milk 1 l', {}, 1.5, 0);
+  const map = new Map([...PRODUCTS, ['lf', lactoseFree]]);
+  const lf = (litres: number) => order([{ productId: 'lf', name: 'Valio lactose free semi skimmed milk 1 l', litres }]);
+
+  it('100 L of another milk is information only: it is 10 % of the usual amount, not a replacement', () => {
+    const r = detectDeviations(TWELVE, lf(100), map);
+    assert.equal(r.differing, 0);
+    const c = row(r.checks, 'Extra item');
+    assert.equal(c?.result, 'info');
+    assert.equal(c?.detail, 'Next to the usual order');
+    assert.equal(r.findings.length, 0);
+  });
+  it('the same milk in a comparable amount (1,000 L) is still a swap and flags', () => {
+    const r = detectDeviations(TWELVE, lf(1000), map);
+    assert.equal(r.differing, 1);
+    assert.equal(row(r.checks, 'Product')?.result, 'review');
+  });
+  it('the edges of "comparable": half is a swap, a third is an extra item', () => {
+    assert.equal(row(detectDeviations(TWELVE, lf(500), map).checks, 'Product')?.result, 'review');
+    assert.equal(row(detectDeviations(TWELVE, lf(330), map).checks, 'Extra item')?.result, 'info');
+  });
+  it('several times the usual amount of another milk is still a swap, with the quantity as a second finding', () => {
+    const r = detectDeviations(TWELVE, lf(5000), map);
+    assert.equal(r.differing, 2);
+    assert.equal(row(r.checks, 'Product')?.result, 'review');
+    assert.equal(row(r.checks, 'Quantity')?.result, 'review');
+  });
+  it('the usual product itself at 10x is still a quantity review', () => {
+    assert.equal(detectDeviations(TWELVE, skimmed(10000), map).differing, 1);
+  });
+});
+
 describe('cold start', () => {
   it('fewer than 4 past orders gives no baseline and flags nothing', () => {
     const r = detectDeviations(weekly([1000, 1000, 1000]), whole(5000), PRODUCTS);

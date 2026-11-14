@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { call, clock, eur } from '@/components/flow/api';
 import { DeviationCard } from '@/components/approvals/deviation-card';
 import { Page, Panel, Pill } from '@/components/page';
+import { ConfirmationLink } from '@/components/verify/confirmation-link';
 import { signedDecision } from '@/components/verify/device-key';
 import { ReceiptLink } from '@/components/verify/receipt-link';
 import type { DeviationReport, ExposedOrder, Mandate, Order } from '@/types';
@@ -235,7 +236,10 @@ export function ApprovalInbox() {
                   </p>
                 )
               )}
-              {o.status !== 'pending_approval' && <ReceiptLink id={o.id} />}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {o.status !== 'pending_approval' && <ReceiptLink id={o.id} />}
+                <ConfirmationLink id={o.id} variant="link" />
+              </div>
             </Panel>
           );
         })}

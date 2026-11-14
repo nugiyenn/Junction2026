@@ -12,10 +12,8 @@ const LINKS = [
   { href: '/', label: 'Buyer agent' },
   { href: '/recipe', label: 'Recipe order' },
   { href: '/approvals', label: 'Approvals' },
-  { href: '/exposure', label: 'What agents see' },
+  { href: '/exposure', label: 'Agent view' },
   { href: '/audit', label: 'Decision record' },
-  { href: '/stats', label: 'Buyer stats' },
-  { href: '/models', label: 'Models' },
   { href: '/verify', label: 'Verify' },
 ];
 

@@ -2018,6 +2018,59 @@
           }
         ]
       }
+    },
+    "/api/orders/{id}/confirmation": {
+      "get": {
+        "summary": "Order confirmation (PDF)",
+        "description": "The order as a printable A4 PDF: an order confirmation, not an invoice (no invoice number, VAT breakdown, payment terms or bank details). It holds what the buyer already sees in a quote or order: lines with quantity, product, the buyer's unit price and line total, the total excluding VAT, the mandate decision with its agent-safe reasons, the approver's name and time when a person decided, the quote's signing key id, the approver device-key fingerprint, the audit chain head of the order, and a QR code to /verify?order={id} on this server. Confirmed and waiting orders show their status. A rejected or declined order returns the same document with the status Declined. The verify link uses the origin of the request. Rate limited per mandate (the quotes limit).",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Order id."
+          }
+        ]
+      }
     }
   },
   "components": {

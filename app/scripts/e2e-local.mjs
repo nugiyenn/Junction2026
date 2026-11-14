@@ -4,6 +4,8 @@
 // the audit chain and the live web checks. It writes real quotes, orders and audit events to the database
 // (use "Reset demo data" afterwards) and spends model and web quota: about two full requests. Prints PASS/FAIL, never keys.
 
+import { inflateSync } from 'node:zlib';
+
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const MINUTE = 60_000;
 let failures = 0;
@@ -25,6 +27,19 @@ async function http(method, path, body, headers = {}, timeoutMs = 5 * MINUTE) {
   try { json = JSON.parse(text); } catch { /* not JSON */ }
   return { status: res.status, headers: res.headers, json, text };
 }
+
+
+/** The text a PDF draws: content streams are Flate-compressed, so inflate each and read the hex strings of its Tj operators. */
+const pdfText = (bytes) => {
+  const raw = Buffer.from(bytes).toString('latin1');
+  const parts = [];
+  for (const m of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+    let body;
+    try { body = inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch { continue; }
+    for (const t of body.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) parts.push(Buffer.from(t[1], 'hex').toString('latin1'));
+  }
+  return parts.join('\n');
+};
 
 const mcp = async (id, method, params, headers = {}) =>
   http('POST', '/api/mcp', { jsonrpc: '2.0', id, method, params }, headers, 3 * MINUTE);
@@ -101,6 +116,19 @@ async function main() {
       const leaks = JSON.stringify(receipt.json ?? {});
       log(!/"listPrice"|"discountPct"|"vendorName"|"availableAmount":\s*\d/.test(leaks), 'receipt hides list price, discount, supplier and exact stock');
       log((receipt.json?.audit?.events ?? []).length > 0, 'receipt carries the audit events', `${(receipt.json?.audit?.events ?? []).length} event(s), linked: ${receipt.json?.audit?.linked}`);
+      // Order confirmation (PDF) for the same order: a document, not an invoice, with nothing the buyer must not see.
+      const pdfRes = await fetch(`${BASE}/api/orders/${order.id}/confirmation`, { signal: AbortSignal.timeout(60_000) });
+      const pdf = new Uint8Array(await pdfRes.arrayBuffer());
+      log(pdfRes.status === 200 && (pdfRes.headers.get('content-type') ?? '').startsWith('application/pdf'), 'order confirmation is a PDF', `HTTP ${pdfRes.status}, ${pdfRes.headers.get('content-type')}`);
+      log(Buffer.from(pdf.slice(0, 4)).toString('latin1') === '%PDF' && pdf.byteLength < 200_000, 'confirmation starts with %PDF and is under 200 KB', `${pdf.byteLength} bytes`);
+      log(/inline; filename="order-confirmation-[0-9a-f]{8}\.pdf"/.test(pdfRes.headers.get('content-disposition') ?? ''), 'confirmation opens inline with a clear file name');
+      // The content streams are compressed, so the raw bytes cannot be searched: look at the text the PDF draws.
+      const drawn = pdfText(pdf);
+      log(drawn.includes('Order confirmation') && drawn.includes(`verify?order=${order.id}`), 'confirmation text is readable and links to /verify for this order', `${drawn.length} characters drawn`);
+      log(!/vendorName|listPrice|discountPct|availableAmount/i.test(drawn) && !/invoice number|IBAN/i.test(drawn), 'confirmation hides list price, discount, supplier and exact stock, and names no invoice detail');
+      log(drawn.includes('Prototype. Synthetic data. This is an order confirmation, not an invoice.'), 'confirmation carries the prototype footer');
+      const noPdf = await http('GET', '/api/orders/00000000-0000-4000-8000-000000000000/confirmation', undefined, {}, 30_000);
+      log(noPdf.status === 404, 'confirmation for an unknown order is a plain 404', `HTTP ${noPdf.status}`);
     }
   }
 

@@ -22,12 +22,22 @@ A language model reads the request. Code decides everything else: quantities, pr
 - **Exposure policy**: the agent never sees exact stock, list price, discount or supplier.
 - **Decision record**: every step is logged in plain language and hash-chained.
 - **Live checks**: allergen and label claims can be verified against the web, with quotes and source links.
+- **Recipe order**: a kitchen pastes a recipe or shopping list and gets one order instead of ordering product by product.
+- **Unusual order flag**: an order that differs from the buyer's own usual orders (for example whole milk instead of the usual skimmed) goes to a person. A fixed rule in code, no model.
 
 ## Pages
 
-- `/verify`: check an order's signed receipt in the browser.
-- `/recipe`: Recipe order. Paste a recipe or shopping list, match each line to a Valio product with pack quantities, and create one quote. Code reads the text; a model only splits prose it cannot parse.
-- Also: buyer agent, approvals, what agents see, decision record, buyer stats, models.
+Eight pages:
+
+- `/`: Buyer agent. Includes a "Recurring orders" block that places the usual weekly milk order and three unusual ones.
+- `/recipe`: Recipe order. Paste a recipe or shopping list, match each line to a Valio product with pack quantities, and create one quote. Code reads the text and matches products; a model only splits prose the parser cannot read.
+- `/approvals`: a person approves or declines. An order flagged as unusual shows the usual order next to this one.
+- `/exposure`: what agents see, next to what Valio holds.
+- `/audit`: decision record, hash-chained.
+- `/stats`: buyer stats.
+- `/models`: the open model evaluation.
+- `/verify`: check an order's signed receipt in the browser. `/verify?order=<id>` loads and checks it by itself.
+- Order confirmation: every order has a printable PDF (`GET /api/orders/<id>/confirmation`) with the lines, the decision, the signatures and a QR code that opens `/verify`. It is a confirmation, not an invoice.
 
 ## Tech
 
@@ -49,12 +59,14 @@ node --conditions=react-server --env-file=.env.local scripts/seed.mts --no-embed
 npm run dev                       # http://localhost:3000
 ```
 
-Put `valio_aimo_junction26_product_data.json` in `app/data/` first. Tests: `npm test`.
+Put `valio_aimo_junction26_product_data.json` in `app/data/` first. Tests: `npm test` (374 tests). An end-to-end script, `app/scripts/e2e-local.mjs`, runs 83 checks against a running dev server.
 
 ## Limits
 
 - Orders are stored in our database only. Valio's mock has no order endpoint.
 - Semantic search covers only part of the catalog (Gemini free tier).
 - No per-agent login. Callers pass a mandate id.
+- The unusual-order thresholds are our guesses until Valio gives real numbers, and the order history behind them is synthetic (`app/scripts/seed-standing-orders.mts`).
+- Recipe order: some products can never be ordered because Valio's synthetic data has fixed past order cut-offs. They are shown as "Can't order" with the reason.
 
 All Valio data is synthetic.
