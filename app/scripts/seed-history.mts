@@ -46,6 +46,8 @@ interface Profile {
 const PROFILES: Profile[] = [
   { id: 'demo-hotel', autoLimit: 500, maxOrder: 5000, medianStart: 300, medianEnd: 460, sigma: 0.95, weekdayOrders: [1, 3], weekendOrders: [0, 1], humanShare: 0.04, approveShare: 0.86, decisionStart: 2700, decisionEnd: 1500, greener: false },
   { id: 'demo-school', autoLimit: 300, maxOrder: 2000, medianStart: 190, medianEnd: 170, sigma: 0.7, weekdayOrders: [1, 2], weekendOrders: [0, 0], humanShare: 0.08, approveShare: 0.78, decisionStart: 12000, decisionEnd: 7200, greener: true },
+  // Earned autonomy: every reviewed order was approved, so a raise is earned.
+  { id: 'demo-autonomy', autoLimit: 200, maxOrder: 5000, medianStart: 210, medianEnd: 250, sigma: 0.5, weekdayOrders: [1, 2], weekendOrders: [0, 0], humanShare: 0.05, approveShare: 1, decisionStart: 1800, decisionEnd: 900, greener: false },
 ];
 
 const pool = getPool();

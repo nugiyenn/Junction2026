@@ -709,3 +709,81 @@ export interface InterpretationCheck {
   detail: string;
 }
 
+
+// --- autonomy ---
+
+/** One past order as earned autonomy reads it: a subset of `StatsOrder`. */
+export type AutonomyOrder = Pick<StatsOrder, 'at' | 'total' | 'outcome' | 'synthetic'>;
+
+/** A proposed change to the auto-approve limit, computed from the buyer's record of human decisions. A person accepts it. */
+export interface AutonomySuggestion {
+  /** Deterministic hash of mandate, field, new value and evidence counts: the server recomputes it to check it is still current. */
+  id: string;
+  kind: 'raise_auto_limit' | 'lower_auto_limit';
+  field: 'autoApproveLimitEur';
+  from: number;
+  to: number;
+  /** One plain sentence. */
+  reason: string;
+  evidence: {
+    /** Orders the rule looked at. */
+    orders: number;
+    approved: number;
+    /** Declined by a person, or rejected by the mandate (lower rule only). */
+    declined: number;
+    windowDays: number;
+    /** 0-1: the share of the evidence orders that come from generated demo history. */
+    syntheticShare: number;
+  };
+  /** Share of the window's orders (by size alone) that fit under the limit, 0-1. */
+  effect: { autoApprovedShareBefore: number; autoApprovedShareAfter: number };
+}
+
+/** Share of human-reviewed orders approved, per calendar month (UTC). */
+export interface AutonomyMonth {
+  /** YYYY-MM. */
+  month: string;
+  reviewed: number;
+  approved: number;
+  /** 0-1. */
+  approvalRate: number;
+}
+
+export interface AutonomySummary {
+  /** Reviewed (approved or declined by a person) orders in the window. */
+  reviewed: number;
+  approved: number;
+  declined: number;
+  windowDays: number;
+  /** 0-1, over the reviewed orders in the window. */
+  syntheticShare: number;
+  trajectory: AutonomyMonth[];
+  /** One line saying why there is nothing to suggest. Null when there is a suggestion. */
+  noSuggestionReason: string | null;
+}
+
+export interface AutonomyResult {
+  suggestions: AutonomySuggestion[];
+  summary: AutonomySummary;
+}
+
+/** GET /api/autonomy */
+export interface AutonomyResponse extends AutonomyResult {
+  mandate: Mandate;
+  /** How much of the history is generated demo history. */
+  note: string;
+  /** When set, only decisions after this instant count: the last time the limit was changed. */
+  evidenceSince: string | null;
+}
+
+/** POST /api/autonomy */
+export interface AutonomyAcceptRequest {
+  mandateId: string;
+  suggestionId: string;
+  decidedBy: string;
+}
+
+export interface AutonomyAcceptResponse {
+  mandate: Mandate;
+  suggestion: AutonomySuggestion;
+}

@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/exposure', label: 'What agents see' },
   { href: '/audit', label: 'Decision record' },
   { href: '/stats', label: 'Buyer stats' },
+  { href: '/autonomy', label: 'Autonomy' },
   { href: '/models', label: 'Models' },
 ];
 
