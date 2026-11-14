@@ -709,3 +709,45 @@ export interface InterpretationCheck {
   detail: string;
 }
 
+
+// --- red team ---
+
+/** What the policy knows about the buyer's recent activity, beyond the order itself. */
+export interface PolicyContext {
+  /** Confirmed and pending orders of this mandate in the last 24 hours, ex VAT, not counting the order being judged. */
+  spentLast24hEur?: number;
+}
+
+/**
+ * blocked: the attack was stopped. allowed: it got through (a finding). not_protected: the protection is not configured,
+ * so nothing stopped it. skipped: it could not run (reason says why).
+ */
+export type RedTeamOutcome = 'blocked' | 'allowed' | 'not_protected' | 'skipped';
+
+export interface RedTeamScenarioInfo {
+  id: string;
+  title: string;
+  /** What the attacker tries, in a few words. */
+  attempt: string;
+  /** The file and function that is supposed to stop it. */
+  mechanism: string;
+}
+
+export interface RedTeamResult extends RedTeamScenarioInfo {
+  outcome: RedTeamOutcome;
+  reason: string;
+  /** Facts observed while running, one line each. */
+  evidence: string[];
+  durationMs: number;
+}
+
+/** What a free-text attack on the request reader produced, and what the policy then decided. */
+export interface RedTeamTextResult {
+  read: { product: string; amount: number; amountUnit: string; deliveryDate: string; model: string; secondOpinion: InterpretationCheck };
+  /** The order priced at a stand-in product's price, so the policy can judge it. Null when the product could not be priced. */
+  priced: { productName: string; unitPriceEur: number; totalEur: number } | null;
+  spentLast24hEur: number;
+  decision: PolicyDecision | null;
+  /** One line on what the text could not change. */
+  unchanged: string;
+}

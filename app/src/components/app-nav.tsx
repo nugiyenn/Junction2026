@@ -14,6 +14,7 @@ const LINKS = [
   { href: '/audit', label: 'Decision record' },
   { href: '/stats', label: 'Buyer stats' },
   { href: '/models', label: 'Models' },
+  { href: '/red-team', label: 'Red team' },
 ];
 
 /** Sidebar on wide screens, a scrolling bar on phones. The Approvals link shows how many orders are waiting. */

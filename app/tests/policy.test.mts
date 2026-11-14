@@ -208,3 +208,46 @@ describe('combining rules', () => {
     assert.equal(d.outcome, 'reject');
   });
 });
+
+describe('rolling 24-hour spend', () => {
+  // limit 500, max 5000
+  const rolling = (total: number, spentLast24hEur?: number) =>
+    evaluateOrder(mandate(), { total, lines: [line()] } as Quote, new Map([['p1', product()]]), new Map(), new Map(), { spentLast24hEur });
+
+  it('stays automatic when the day so far plus this order is under the limit', () => {
+    assert.deepEqual(rolling(100, 300), { outcome: 'auto_approve', reasons: [] });
+  });
+  it('stays automatic exactly at the limit', () => {
+    assert.equal(rolling(200, 300).outcome, 'auto_approve');
+  });
+  it('needs a person one cent over the limit, with the sums in the reason', () => {
+    const d = rolling(200.01, 300);
+    assert.equal(d.outcome, 'needs_approval');
+    assert.equal(
+      d.reasons[0],
+      'Orders in the last 24 hours (300.00 EUR) plus this one (200.01 EUR) are above the auto-approve limit of 500.00 EUR.'
+    );
+  });
+  it('is not fooled by floating point at the boundary', () => {
+    const m = mandate({ autoApproveLimitEur: 0.3 });
+    const d = evaluateOrder(m, { total: 0.2, lines: [line()] } as Quote, new Map([['p1', product()]]), new Map(), new Map(), { spentLast24hEur: 0.1 });
+    assert.equal(d.outcome, 'auto_approve');
+  });
+  it('never rejects: a person decides even when the sum is far above the maximum', () => {
+    assert.equal(rolling(400, 9000).outcome, 'needs_approval');
+  });
+  it('still rejects a single order above the maximum', () => {
+    assert.equal(rolling(6000, 10).outcome, 'reject');
+  });
+  it('gives one reason, not two, when this order alone is above the limit', () => {
+    const d = rolling(900, 300);
+    assert.equal(d.outcome, 'needs_approval');
+    assert.equal(d.reasons.length, 1);
+    assert.match(d.reasons[0], /^Order total 900\.00 EUR is above/);
+  });
+  it('does nothing without a context or with no earlier spend', () => {
+    assert.equal(rolling(400).outcome, 'auto_approve');
+    assert.equal(rolling(400, 0).outcome, 'auto_approve');
+    assert.equal(run(mandate(), 400, product(), line()).outcome, 'auto_approve');
+  });
+});

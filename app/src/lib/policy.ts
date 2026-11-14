@@ -1,4 +1,4 @@
-import type { Mandate, PolicyDecision, PolicyOutcome, Product, Quote, RecallCheck, Verification } from '@/types';
+import type { Mandate, PolicyContext, PolicyDecision, PolicyOutcome, Product, Quote, RecallCheck, Verification } from '@/types';
 
 const SEVERITY: Record<PolicyOutcome, number> = { auto_approve: 0, needs_approval: 1, reject: 2 };
 
@@ -12,6 +12,11 @@ export const hasNoAllergenData = (p: Product) =>
  *
  * Rules:
  * - total above the max -> reject; above the auto-approve limit -> human
+ * - rolling 24 hours: the buyer's confirmed and pending orders of the last 24 h plus this one above the auto-approve
+ *   limit -> human. This closes the structuring hole of many orders just under the limit. It never rejects: the maximum
+ *   is a limit on one order, and cumulative spend is a reason for a person to look, not to refuse. A total exactly at the
+ *   limit passes. It adds nothing when this order alone is already above the limit (that reason covers it) or when no
+ *   earlier spend is known (`context.spentLast24hEur` missing or 0).
  * - a blocked allergen the product contains -> reject; may contain -> human
  * - blocked allergens on the mandate and the product has no allergen data at all -> human (unverified)
  * - a stored live-web check: a source saying "contains" a blocked allergen -> reject, "may contain" or any
@@ -30,7 +35,9 @@ export function evaluateOrder(
   /** Stored live-web checks, if any. They can clear an unverified product or stop one the catalog got wrong. */
   verifications: Map<string, Verification> = new Map(),
   /** Stored recall checks, if any. A match sends the order to a human. */
-  recalls: Map<string, RecallCheck> = new Map()
+  recalls: Map<string, RecallCheck> = new Map(),
+  /** What the caller knows about the buyer's recent activity. `spentLast24hEur` is confirmed plus pending orders, ex VAT, excluding this one. */
+  context: PolicyContext = {}
 ): PolicyDecision {
   let outcome: PolicyOutcome = 'auto_approve';
   const reasons: string[] = [];
@@ -46,6 +53,15 @@ export function evaluateOrder(
     raise(
       'needs_approval',
       `Order total ${eur(quote.total)} is above the auto-approve limit of ${eur(mandate.autoApproveLimitEur)}.`
+    );
+  }
+
+  const cents = (n: number) => Math.round(n * 100);
+  const spent = context.spentLast24hEur ?? 0;
+  if (spent > 0 && quote.total <= mandate.autoApproveLimitEur && cents(spent + quote.total) > cents(mandate.autoApproveLimitEur)) {
+    raise(
+      'needs_approval',
+      `Orders in the last 24 hours (${eur(spent)}) plus this one (${eur(quote.total)}) are above the auto-approve limit of ${eur(mandate.autoApproveLimitEur)}.`
     );
   }
 

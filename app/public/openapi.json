@@ -504,7 +504,7 @@
     "/api/orders": {
       "post": {
         "summary": "Place an order against a quote",
-        "description": "The mandate decides: confirmed, pending_approval or rejected, with reasons. Needs an unexpired, fulfillable quote whose signature still matches.",
+        "description": "The mandate decides: confirmed, pending_approval or rejected, with reasons. Needs an unexpired, fulfillable quote whose signature still matches. Orders of the same mandate in the last 24 hours count too: confirmed and pending orders plus this one above the auto-approve limit need a person.",
         "tags": [
           "Order"
         ],
@@ -1681,6 +1681,158 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/redteam": {
+      "get": {
+        "summary": "Red-team attack scenarios",
+        "description": "Lists the attacks the harness can run, without running anything.",
+        "tags": [
+          "Red team"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scenarios": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RedTeamScenarioInfo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Run red-team attacks",
+        "description": "Runs attacks for real against the gateway's functions on the dedicated `demo-redteam` mandate (its orders are removed afterwards; quotes and audit events stay). Body is `{ id }` for one scenario, `{ all: true }` for all of them in sequence, or `{ text }` to read one request text with the real reader and show the policy outcome (writes nothing). Each result is blocked, allowed, not_protected (the protection is not configured) or skipped. Rate limited (4 per minute, shared); a run in progress answers 409.",
+        "tags": [
+          "Red team"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "id"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "all"
+                    ],
+                    "properties": {
+                      "all": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "text"
+                    ],
+                    "properties": {
+                      "text": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 500
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Results, or the reading of the text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/RedTeamResult"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/RedTeamTextResult"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown scenario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is already in progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -3420,6 +3572,150 @@
           "detail"
         ],
         "description": "A second model reads the request independently. Code compares the amount, unit and delivery date and reports any disagreement. A warning, not a mandate rule."
+      },
+      "RedTeamScenarioInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "attempt",
+          "mechanism"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "string",
+            "description": "What the attacker tries."
+          },
+          "mechanism": {
+            "type": "string",
+            "description": "The file and function that is supposed to stop it."
+          }
+        }
+      },
+      "RedTeamResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "attempt",
+          "mechanism",
+          "outcome",
+          "reason",
+          "evidence",
+          "durationMs"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "string"
+          },
+          "mechanism": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "allowed",
+              "not_protected",
+              "skipped"
+            ],
+            "description": "blocked: stopped. allowed: got through (a finding). not_protected: the protection is not configured. skipped: could not run."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "durationMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "RedTeamTextResult": {
+        "type": "object",
+        "required": [
+          "read",
+          "priced",
+          "spentLast24hEur",
+          "decision",
+          "unchanged"
+        ],
+        "properties": {
+          "read": {
+            "type": "object",
+            "properties": {
+              "product": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "amountUnit": {
+                "type": "string"
+              },
+              "deliveryDate": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "secondOpinion": {
+                "$ref": "#/components/schemas/InterpretationCheck"
+              }
+            }
+          },
+          "priced": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The order priced at a stand-in product so the policy can judge it.",
+            "properties": {
+              "productName": {
+                "type": "string"
+              },
+              "unitPriceEur": {
+                "type": "number"
+              },
+              "totalEur": {
+                "type": "number"
+              }
+            }
+          },
+          "spentLast24hEur": {
+            "type": "number"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unchanged": {
+            "type": "string",
+            "description": "One line on what the text could not change."
+          }
+        }
       }
     },
     "securitySchemes": {
