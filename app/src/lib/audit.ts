@@ -1,6 +1,8 @@
 import 'server-only';
+import { after } from 'next/server';
 import { eventHash, verifyChain, type ChainRow, type ChainStatus } from '@/lib/chain';
 import { getPool } from '@/lib/db';
+import { publishAuditEvent } from '@/lib/events';
 import type { AuditEvent } from '@/types';
 
 /** Serialises writers, so two events cannot both extend the same previous hash and fork the chain. */
@@ -59,12 +61,19 @@ export async function logAudit(event: Omit<AuditEvent, 'id' | 'at' | 'hash' | 'p
       summary: event.summary,
       data,
     });
-    await client.query(
+    const { rows: inserted } = await client.query<{ id: string }>(
       `INSERT INTO audit_events (at, actor, action, mandate_id, quote_id, order_id, summary, data, prev_hash, hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [at, event.actor, event.action, event.mandateId, event.quoteId, event.orderId, event.summary, JSON.stringify(data), prevHash, hash]
     );
     await client.query('COMMIT');
+    // Committed: tell the event stream, after the response where the platform allows, and never wait for it.
+    const publish = () => void publishAuditEvent({ ...event, data, id: inserted[0].id, at: at.toISOString(), prevHash, hash });
+    try {
+      after(publish);
+    } catch {
+      publish(); // not inside a request (a script): publish directly
+    }
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

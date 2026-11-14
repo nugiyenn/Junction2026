@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { eventHash } from '../src/lib/chain.ts';
 import { enableVectorExtension, getPool } from '../src/lib/db.ts';
 import { embedTexts } from '../src/lib/llm.ts';
+import { ORDER_HISTORY_DDL } from '../src/lib/stats.ts';
 
 const DATA = new URL('../data/', import.meta.url);
 
@@ -219,6 +220,7 @@ await pool.query(`
   ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS prev_hash text;
   ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS hash text;
 `);
+await pool.query(ORDER_HISTORY_DDL); // synthetic demo history for /stats, filled by scripts/seed-history.mts
 
 // Events written before the hash chain existed get hashed now, oldest first, so one chain covers the whole trail.
 {
