@@ -5,7 +5,7 @@ import { getProductsByIds } from '@/lib/catalog';
 import { getPool } from '@/lib/db';
 import { ALLERGEN_CODES, compareWithCatalog, evidenceAppears, pageMatchesProduct } from '@/lib/evidence';
 import { HttpError } from '@/lib/http';
-import { runOpenModelStructured } from '@/lib/llm';
+import { runExtractionModelStructured } from '@/lib/llm';
 import { OxylabsAuthError, OxylabsError, readPage, searchWeb } from '@/lib/oxylabs';
 import type { Product, Verification, VerificationSource, VerifiedStatement } from '@/types';
 
@@ -58,7 +58,7 @@ export async function getVerifications(productIds: string[]): Promise<Map<string
 }
 
 async function extractStatements(page: string, product: Product, sourceUrl: string): Promise<{ statements: VerifiedStatement[]; model: string }> {
-  const { output, model } = await runOpenModelStructured(
+  const { output, model } = await runExtractionModelStructured(
     `You read one web page about a food product and extract what it says about allergens and labels.
 The product is: ${product.nameEn ?? product.nameFi}${product.gtin ? ` (GTIN ${product.gtin})` : ''}.
 Return {"statements": [...]}. Each statement has:
