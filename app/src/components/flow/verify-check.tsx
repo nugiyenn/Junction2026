@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pill, type Tone } from '@/components/page';
-import type { Verification } from '@/types';
+import { Panel, Pill, type Tone } from '@/components/page';
+import type { LiveChecks, RecallCheck, Verification } from '@/types';
 import { allergenName, call } from './api';
 
 const STATUS: Record<Verification['status'], { label: string; tone: Tone }> = {
@@ -83,5 +83,88 @@ export function VerifyCheck({ productId, name }: { productId: string; name: stri
         </>
       )}
     </div>
+  );
+}
+
+const RECALL: Record<RecallCheck['status'], { label: string; tone: Tone }> = {
+  none_found: { label: 'No recall found', tone: 'ok' },
+  match: { label: 'Recall notice found', tone: 'bad' },
+  unreadable: { label: 'Recall notices unreadable', tone: 'plain' },
+};
+
+const hostname = (url: string) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
+
+/**
+ * What the live web said about the products an offer would order, checked automatically while the request was
+ * planned: allergen and label claims, and recall notices. A check that did not run is shown, not hidden.
+ */
+export function LiveChecksSummary({ checks }: { checks: LiveChecks }) {
+  return (
+    <Panel className="flex flex-col gap-3" aria-label="Live web checks">
+      <h2 className="text-[17px] font-semibold">Live web checks</h2>
+      {checks.products.map((p) => (
+        <div key={p.productId} className="flex flex-col gap-1.5 text-[13px]">
+          <span className="font-medium">{p.name}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {p.verification && <Pill tone={STATUS[p.verification.status].tone}>{STATUS[p.verification.status].label}</Pill>}
+            {p.recall && <Pill tone={RECALL[p.recall.status].tone}>{RECALL[p.recall.status].label}</Pill>}
+          </div>
+          {p.skipped.map((s) => (
+            <p key={s} className="text-xs text-destructive">
+              {s}
+            </p>
+          ))}
+          {p.recall?.matches.map((m) => (
+            <p key={m.sourceUrl} className="text-xs text-muted-foreground">
+              “{m.quote.replace(/[*\s]+/g, ' ')}”{' '}
+              <a href={m.sourceUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+                notice
+              </a>
+            </p>
+          ))}
+        </div>
+      ))}
+      <details>
+        <summary className="min-h-9 cursor-pointer py-1.5 text-[13px] text-primary">Show sources</summary>
+        <div className="flex flex-col gap-3 pt-1 text-xs text-muted-foreground">
+          {checks.products.map((p) => {
+            const sources = [
+              ...(p.verification?.sources.map((s) => ({ ...s, kind: 'Allergens and labels' })) ?? []),
+              ...(p.recall?.sources.map((s) => ({ ...s, kind: 'Recalls' })) ?? []),
+            ];
+            return (
+              <div key={p.productId} className="flex flex-col gap-1">
+                <strong className="text-foreground">{p.name}</strong>
+                {p.recall && (
+                  <p>
+                    Recall search: <code>{p.recall.query}</code>
+                    {p.recall.searchRequestId ? ` · Oxylabs request ${p.recall.searchRequestId}` : ''}
+                  </p>
+                )}
+                {p.verification?.searchRequestId && <p>Claims search · Oxylabs request {p.verification.searchRequestId}</p>}
+                <ul>
+                  {sources.map((s) => (
+                    <li key={`${s.kind}-${s.url}`}>
+                      {s.kind}:{' '}
+                      <a href={s.url} target="_blank" rel="noreferrer" className="text-primary underline">
+                        {hostname(s.url)}
+                      </a>
+                      {s.note ? `: ${s.note}` : ''}
+                      {s.requestId ? ` · Oxylabs request ${s.requestId}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </details>
+    </Panel>
   );
 }

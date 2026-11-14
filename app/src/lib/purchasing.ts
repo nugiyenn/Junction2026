@@ -4,6 +4,7 @@ import { getProductsByIds } from '@/lib/catalog';
 import { getPool } from '@/lib/db';
 import { HttpError } from '@/lib/http';
 import { evaluateOrder } from '@/lib/policy';
+import { getRecallChecks } from '@/lib/recall';
 import { signQuote, verifyQuoteSignature } from '@/lib/signing';
 import { getVerifications } from '@/lib/verify';
 import { getAvailability, getPrices } from '@/lib/valio';
@@ -363,12 +364,13 @@ const toOrder = (r: OrderRow): Order => ({
 /** Applies the buyer's mandate to a quote. Reads stored web checks only: no live call while an order is judged. */
 async function judgeQuote(quote: Quote): Promise<{ mandate: Mandate; decision: PolicyDecision }> {
   const lineIds = quote.lines.map((l) => l.productId);
-  const [mandate, products, verifications] = await Promise.all([
+  const [mandate, products, verifications, recalls] = await Promise.all([
     getMandate(quote.mandateId),
     getProductsByIds(lineIds),
     getVerifications(lineIds),
+    getRecallChecks(lineIds),
   ]);
-  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications) };
+  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications, recalls) };
 }
 
 /** What the mandate would decide if this quote were ordered now. The same rules as placeOrder; writes nothing. */

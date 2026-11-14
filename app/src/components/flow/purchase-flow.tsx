@@ -21,7 +21,7 @@ import type {
 } from '@/types';
 import { call, clock, eur } from './api';
 import { MandatePanel } from './mandate-panel';
-import { VerifyCheck } from './verify-check';
+import { LiveChecksSummary, VerifyCheck } from './verify-check';
 
 const SCENARIOS = [
   {
@@ -519,6 +519,7 @@ export function PurchaseFlow() {
 
           <aside className="flex min-w-0 flex-[1_1_340px] flex-col gap-6">
             {policy && mandate && quote && <DecisionCard policy={policy} mandate={mandate} total={quote.total} />}
+            {result.liveChecks && <LiveChecksSummary checks={result.liveChecks} />}
 
             {quote && (
               <Panel className="flex flex-col gap-4" aria-label="Quote">
