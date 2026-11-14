@@ -228,6 +228,7 @@ await pool.query(`
   ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS prev_hash text;
   ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS hash text;
 `);
+await pool.query('CREATE INDEX IF NOT EXISTS orders_mandate_created_idx ON orders (mandate_id, created_at)'); // the rolling 24 h spend rule
 await pool.query(ORDER_HISTORY_DDL); // synthetic demo history for /stats, filled by scripts/seed-history.mts
 
 // Events written before the hash chain existed get hashed now, oldest first, so one chain covers the whole trail.
@@ -304,6 +305,15 @@ await pool.query(
   `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
                          min_delivery_reliability, require_confirmed_stock, max_co2_per_kg, preferred_offer)
    VALUES ('demo-autonomy', 'Harbour Bistro (demo)', 'Bistro purchasing agent', 200, 5000, '[]', NULL, false, NULL, 'cheapest')
+   ON CONFLICT (id) DO NOTHING`
+);
+
+// The red-team harness attacks the gateway on a mandate of its own, so its orders never touch a buyer's. Created once,
+// never reset: a low auto-approve limit lets a few small orders reach the rolling 24 h rule.
+await pool.query(
+  `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
+                         min_delivery_reliability, require_confirmed_stock, max_co2_per_kg, preferred_offer)
+   VALUES ('demo-redteam', 'Red team (harness)', 'Attacking agent', 100, 5000, '[]', NULL, false, NULL, 'cheapest')
    ON CONFLICT (id) DO NOTHING`
 );
 

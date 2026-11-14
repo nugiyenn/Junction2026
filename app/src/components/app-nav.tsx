@@ -29,6 +29,7 @@ const LINKS = [
   { href: '/autonomy', label: 'Autonomy' },
   { href: '/models', label: 'Models' },
   { href: '/verify', label: 'Verify' },
+  { href: '/red-team', label: 'Red team' },
 ];
 
 function NavIcon({ href }: { href: string }) {

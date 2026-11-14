@@ -20,6 +20,8 @@ export const LIMITS = {
   verify: { limit: fromEnv('RATE_LIMIT_VERIFY_PER_MIN', 12), windowSeconds: 60 },
   // Photo reading spends vision-model quota and is not tied to a mandate: one shared counter.
   intake: { limit: fromEnv('RATE_LIMIT_INTAKE_PER_MIN', 6), windowSeconds: 60 },
+  // The red-team harness writes quotes and orders and reads text with models: one shared counter.
+  redteam: { limit: fromEnv('RATE_LIMIT_REDTEAM_PER_MIN', 4), windowSeconds: 60 },
 } as const;
 
 export interface RateLimitResult {

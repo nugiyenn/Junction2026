@@ -68,7 +68,8 @@ export async function getMandate(id: string): Promise<Mandate> {
 }
 
 export async function listMandates(): Promise<Mandate[]> {
-  const { rows } = await getPool().query<MandateRow>('SELECT * FROM mandates ORDER BY id');
+  // demo-redteam belongs to the red-team harness, not to a buyer: it stays out of the buyer pickers.
+  const { rows } = await getPool().query<MandateRow>(`SELECT * FROM mandates WHERE id <> 'demo-redteam' ORDER BY id`);
   return rows.map(toMandate);
 }
 
@@ -362,16 +363,28 @@ const toOrder = (r: OrderRow): Order => ({
   decisionNote: r.decision_note,
 });
 
+/** Confirmed and pending orders of a mandate in the last 24 hours (ex VAT), leaving out the order for `excludeQuoteId`. */
+export async function spentInLast24h(mandateId: string, excludeQuoteId: string | null = null): Promise<number> {
+  const { rows } = await getPool().query<{ spent: number }>(
+    `SELECT COALESCE(SUM(total), 0)::float8 AS spent FROM orders
+     WHERE mandate_id = $1 AND status IN ('confirmed', 'pending_approval')
+       AND created_at > now() - interval '24 hours' AND ($2::uuid IS NULL OR quote_id <> $2::uuid)`,
+    [mandateId, excludeQuoteId]
+  );
+  return rows[0].spent;
+}
+
 /** Applies the buyer's mandate to a quote. Reads stored web checks only: no live call while an order is judged. */
 async function judgeQuote(quote: Quote): Promise<{ mandate: Mandate; decision: PolicyDecision }> {
   const lineIds = quote.lines.map((l) => l.productId);
-  const [mandate, products, verifications, recalls] = await Promise.all([
+  const [mandate, products, verifications, recalls, spentLast24hEur] = await Promise.all([
     getMandate(quote.mandateId),
     getProductsByIds(lineIds),
     getVerifications(lineIds),
     getRecallChecks(lineIds),
+    spentInLast24h(quote.mandateId, quote.id),
   ]);
-  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications, recalls) };
+  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications, recalls, { spentLast24hEur }) };
 }
 
 /** What the mandate would decide if this quote were ordered now. The same rules as placeOrder; writes nothing. */
