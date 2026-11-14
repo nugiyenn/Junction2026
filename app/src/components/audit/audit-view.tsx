@@ -68,10 +68,15 @@ export function AuditView() {
           <div className={cn('flex flex-col gap-0.5', chain.valid ? 'text-ok' : 'text-destructive')}>
             <p className="font-semibold">{chain.valid ? 'Chain verified' : `Chain broken at event ${chain.brokenAt}`}</p>
             <p className="text-[13px]">
-              {chain.valid
-                ? `${chain.checked} events. Every hash matches the one before it.`
-                : `Its text no longer matches its hash (${chain.reason}). Every event after it can no longer be trusted.`}
+              {chain.valid ? `${chain.checked} events` : `Text no longer matches its hash (${chain.reason})`}
             </p>
+            {chain.head && (
+              <details className="text-xs">
+                <summary className="min-h-9 cursor-pointer py-1.5">Head hash</summary>
+                <code className="font-mono break-all">{chain.head}</code>
+                <p className="mt-1">Published elsewhere, it also exposes removed events.</p>
+              </details>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="h-11 bg-card" onClick={() => demo('tamper')} disabled={busy !== null || !events?.length}>
@@ -84,13 +89,7 @@ export function AuditView() {
         </Panel>
       )}
 
-      {chain?.head && (
-        <p className="break-all text-xs text-muted-foreground">
-          Head hash <code className="font-mono">{chain.head}</code>. Published elsewhere, it also exposes removed events.
-        </p>
-      )}
-
-      {events?.length === 0 && <p className="text-muted-foreground">Nothing recorded yet.</p>}
+      {events?.length === 0 && <p className="text-muted-foreground">Nothing recorded.</p>}
 
       {events && events.length > 0 && (
         <Panel className="px-6 py-5">
@@ -113,10 +112,17 @@ export function AuditView() {
                       #{e.id} · {e.hash?.slice(0, 8) ?? '—'}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-sm">{e.summary}</p>
+                  {e.summary.length > 140 ? (
+                    <details className="mt-1.5 text-sm">
+                      <summary className="min-h-9 cursor-pointer py-1 marker:text-muted-foreground">{e.summary.slice(0, 110).trimEnd()}…</summary>
+                      <p className="pt-1 text-muted-foreground">{e.summary}</p>
+                    </details>
+                  ) : (
+                    <p className="mt-1.5 text-sm">{e.summary}</p>
+                  )}
                   {bad && (
                     <Pill tone="bad" className="mt-2">
-                      First entry that does not verify
+                      First broken entry
                     </Pill>
                   )}
                 </li>

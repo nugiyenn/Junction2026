@@ -24,7 +24,13 @@ export function getPool(): Pool {
     connectionString: url.toString(),
     ssl: { rejectUnauthorized: false },
     max: 3, // one pool per serverless instance; keep small to stay under Aiven connection limits
+    // A slow or unreachable database must fail the request quickly and clearly, not hang it.
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    statement_timeout: 60_000,
   });
+  // A dropped idle connection must not crash the process; the next query opens a new one.
+  global.pgPool.on('error', (err) => console.error('Postgres pool error:', err.message));
   return global.pgPool;
 }
 

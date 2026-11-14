@@ -13,7 +13,15 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 export async function POST(request: Request) {
   // Refuse browser requests from other origins: a web page must not be able to drive an agent's gateway session.
   const origin = request.headers.get('origin');
-  if (origin && new URL(origin).host !== new URL(request.url).host) {
+  let originHost: string | null = null;
+  if (origin) {
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      originHost = ''; // "null" or garbage: not our origin
+    }
+  }
+  if (origin && originHost !== new URL(request.url).host) {
     return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Origin not allowed.' } }, { status: 403 });
   }
 
@@ -24,7 +32,14 @@ export async function POST(request: Request) {
     return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: the body is not JSON.' } }, { status: 400 });
   }
 
-  const answer = await handleRpcBody(body, MCP_TOOLS, MCP_INFO);
+  let answer;
+  try {
+    answer = await handleRpcBody(body, MCP_TOOLS, MCP_INFO);
+  } catch (err) {
+    // Tool errors are answered inside handleRpcBody; this only catches something unexpected, so the client still gets JSON-RPC.
+    console.error('MCP handler error:', err instanceof Error ? err.message : err);
+    return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Internal error.' } }, { status: 500 });
+  }
   if (answer === null) return new Response(null, { status: 202 }); // notifications only
   return new Response(JSON.stringify(answer), { status: 200, headers: JSON_HEADERS });
 }

@@ -83,14 +83,11 @@ export function ApprovalInbox() {
         </div>
       }
     >
-      <Panel className="flex flex-wrap items-center gap-4 px-5 py-4">
-        <div className="flex flex-[1_1_240px] flex-col gap-1.5">
-          <label htmlFor="approver" className="text-xs font-medium tracking-wide text-muted-foreground">
-            Your name, recorded with every decision
-          </label>
-          <Input id="approver" className="h-11" value={approver} onChange={(e) => setApprover(e.target.value)} />
-        </div>
-        <p className="flex-[1_1_260px] text-[13px] text-muted-foreground">Only a person can approve or decline. The agent and its tools have no way to do it.</p>
+      <Panel className="flex flex-wrap items-center gap-3 px-5 py-4">
+        <label htmlFor="approver" className="text-sm font-medium">
+          Approver
+        </label>
+        <Input id="approver" className="h-11 max-w-xs flex-1" value={approver} onChange={(e) => setApprover(e.target.value)} />
       </Panel>
 
       {error && (
@@ -103,7 +100,7 @@ export function ApprovalInbox() {
       {orders === null && !error && <p className="text-muted-foreground">Loading…</p>}
       {orders?.length === 0 && (
         <Panel className="p-10 text-center text-muted-foreground">
-          {filter === 'pending_approval' ? 'Nothing is waiting for you.' : 'No orders yet.'} Send a request from the Buyer agent page.
+          {filter === 'pending_approval' ? 'Nothing waiting.' : 'No orders yet.'}
         </Panel>
       )}
 
@@ -117,20 +114,25 @@ export function ApprovalInbox() {
                 <div className="flex flex-col gap-0.5">
                   <h2 className="text-[17px] font-semibold">{buyers[o.mandateId] ?? o.mandateId}</h2>
                   <p className="text-xs text-muted-foreground">
-                    Order {o.id.slice(0, 8)} · placed {clock(o.createdAt)} · delivery {o.deliveryDate}
+                    #{o.id.slice(0, 8)} · {clock(o.createdAt)} · delivery {o.deliveryDate}
                   </p>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <p className="font-heading text-2xl font-semibold">{eur(o.total)}</p>
+                  <p className="text-2xl font-semibold">{eur(o.total)}</p>
                   <Pill tone={s.tone}>{s.label}</Pill>
                 </div>
               </div>
 
-              <ul className="flex flex-col gap-1 text-sm">
+              <ul className="flex flex-col gap-1.5 text-sm">
                 {o.lines.map((l) => (
-                  <li key={l.productId}>
-                    {l.quantity} {l.salesUnit} × {l.name} · {eur(l.unitPrice)} each = <strong>{eur(l.lineTotal)}</strong>
-                    {l.logisticModel === 'Terminal' && <span className="text-muted-foreground"> · supplier stock, unconfirmed</span>}
+                  <li key={l.productId} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span>
+                      {l.quantity} {l.salesUnit} × {l.name}
+                      {l.logisticModel === 'Terminal' && <Pill className="ml-2">Unconfirmed stock</Pill>}
+                    </span>
+                    <span className="whitespace-nowrap text-muted-foreground">
+                      {eur(l.unitPrice)} each · <strong className="text-foreground">{eur(l.lineTotal)}</strong>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -161,13 +163,13 @@ export function ApprovalInbox() {
                   <Button variant="outline" className="h-11 px-5 text-destructive" onClick={() => decide(o, 'decline')} disabled={busy !== null || noApprover}>
                     Decline
                   </Button>
-                  {noApprover && <span className="text-xs text-muted-foreground">Enter your name first.</span>}
+                  {noApprover && <span className="text-xs text-muted-foreground">Name required</span>}
                 </div>
               ) : (
                 o.decidedBy && (
                   <p className="text-xs text-muted-foreground">
                     {o.status === 'confirmed' ? 'Approved' : 'Declined'} by {o.decidedBy} at {clock(o.decidedAt!)}
-                    {o.decisionNote ? `: ${o.decisionNote}` : ''}. Written to the decision record.
+                    {o.decisionNote ? `: ${o.decisionNote}` : ''}
                   </p>
                 )
               )}

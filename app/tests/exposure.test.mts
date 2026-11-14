@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { exposeLine, exposeOrder, exposeQuote, stockView } from '../src/lib/exposure.ts';
+import { exposeLine, exposeOrder, exposeProduct, exposeQuote, sanitizeIssue, stockView } from '../src/lib/exposure.ts';
 import type { Order, Quote, QuoteLine } from '../src/types/index.ts';
 
 const line = (over: Partial<QuoteLine> = {}): QuoteLine => ({
@@ -91,5 +91,18 @@ describe('exposeQuote and exposeOrder', () => {
     exposeQuote(quote);
     assert.equal(quote.lines[0].availableAmount, 51234);
     assert.equal(quote.lines[0].internal?.vendorName, 'VALIO OY');
+  });
+});
+
+describe('catalog and candidate exposure', () => {
+  it('removes the supplier and the internal category from a catalog product', () => {
+    const shown = exposeProduct({ id: 'p1', nameEn: 'Milk', vendorName: 'VALIO OY', category: '22540', similarity: 0.9 });
+    assert.deepEqual(shown, { id: 'p1', nameEn: 'Milk', similarity: 0.9 });
+    assert.ok(!('vendorName' in shown) && !('category' in shown));
+  });
+  it('replaces an exact stock quantity inside a reason, and leaves other reasons alone', () => {
+    assert.equal(sanitizeIssue('Only 51 ST available.'), 'Not enough stock for the full quantity.');
+    assert.equal(sanitizeIssue('Only 0.5 KI available.'), 'Not enough stock for the full quantity.');
+    assert.equal(sanitizeIssue('Earliest delivery is 2026-11-20.'), 'Earliest delivery is 2026-11-20.');
   });
 });

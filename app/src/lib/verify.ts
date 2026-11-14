@@ -38,6 +38,7 @@ interface VerificationRow {
   sources: VerificationSource[];
   search_request_id: string | null;
   summary: string;
+  model: string | null;
 }
 
 const toVerification = (r: VerificationRow): Verification => ({
@@ -49,6 +50,7 @@ const toVerification = (r: VerificationRow): Verification => ({
   sources: r.sources,
   searchRequestId: r.search_request_id,
   summary: r.summary,
+  model: r.model,
 });
 
 /** Stored checks only, no live calls: used when an order is judged. */
@@ -71,7 +73,7 @@ Use only what the page states about this product. If the page is about another p
     `Page text:\n${page.slice(0, PAGE_CHARS)}`,
     Extraction,
     // Page-sized input takes Gemma longer than a short request does.
-    { gemmaDeadlineMs: 60_000 }
+    { gemmaDeadlineMs: 60_000, skipScope: 'pages' }
   );
 
   const statements: VerifiedStatement[] = [];
@@ -160,13 +162,13 @@ export async function verifyProduct(productId: string, options: { force?: boolea
     }[status];
 
   const { rows } = await getPool().query<VerificationRow>(
-    `INSERT INTO verifications (product_id, checked_at, status, statements, contradictions, sources, search_request_id, summary)
-     VALUES ($1, now(), $2, $3, $4, $5, $6, $7)
+    `INSERT INTO verifications (product_id, checked_at, status, statements, contradictions, sources, search_request_id, summary, model)
+     VALUES ($1, now(), $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (product_id) DO UPDATE SET checked_at = now(), status = EXCLUDED.status, statements = EXCLUDED.statements,
        contradictions = EXCLUDED.contradictions, sources = EXCLUDED.sources, search_request_id = EXCLUDED.search_request_id,
-       summary = EXCLUDED.summary
+       summary = EXCLUDED.summary, model = EXCLUDED.model
      RETURNING *`,
-    [productId, status, JSON.stringify(statements), JSON.stringify(contradictions), JSON.stringify(sources), search.requestId, summary]
+    [productId, status, JSON.stringify(statements), JSON.stringify(contradictions), JSON.stringify(sources), search.requestId, summary, model || null]
   );
 
   await logAudit({

@@ -23,7 +23,8 @@ function getClient(provider: Provider): OpenAI {
   const apiKey = process.env[envKey];
   if (!apiKey) throw new Error(`Missing ${envKey}: cannot call ${provider}`);
 
-  const client = new OpenAI({ apiKey, baseURL });
+  // Default is 10 minutes and 2 retries, far past a request's budget: fail in a minute, retry once.
+  const client = new OpenAI({ apiKey, baseURL, timeout: 60_000, maxRetries: 1 });
   clients.set(provider, client);
   return client;
 }
@@ -32,11 +33,11 @@ function getClient(provider: Provider): OpenAI {
  * Generates 1536-dim embeddings via Gemini to match Aiven pgvector columns
  */
 export async function embedText(text: string): Promise<number[]> {
-  const res = await getClient('gemini').embeddings.create({
-    model: 'gemini-embedding-001',
-    input: text,
-    dimensions: 1536,
-  });
+  // Search falls back to keywords when this fails, so fail fast: a slow embedding call must not stall a request.
+  const res = await getClient('gemini').embeddings.create(
+    { model: 'gemini-embedding-001', input: text, dimensions: 1536 },
+    { timeout: 8_000, maxRetries: 0 }
+  );
   return res.data[0].embedding;
 }
 
@@ -141,11 +142,19 @@ export async function runGemmaStructured<S extends z.ZodType>(
   return schema.parse(JSON.parse(json));
 }
 
-/** Gemma answers in about 5 s when Google is quiet and 40 s or more when it is busy. */
-const GEMMA_DEADLINE_MS = 25_000;
+/**
+ * Gemma took about 12 s per request-reading call in the evaluation (slowest 17 s) and the longer match-picking prompt takes
+ * more, so give it room: the demo should show Gemma answering, not Featherless. On the free tier a busy spell can still run
+ * past this, and then Featherless answers and the label says so.
+ */
+const GEMMA_DEADLINE_MS = 45_000;
 /** After Gemma fails, go straight to Featherless for this long, so one slow spell costs one wait, not one per call. */
 const GEMMA_SKIP_MS = 120_000;
-let gemmaSkipUntil = 0;
+/**
+ * When Gemma fails the open-model chain skips it for a while. Tracked per scope: a long page-reading call that times out
+ * must not make the next short request-reading call skip Gemma, which is the call that should show Gemma answering.
+ */
+const gemmaSkipUntil = new Map<string, number>();
 
 /**
  * Open-weights extraction with a fallback: Gemma first, and if Gemini errors (it sometimes answers 500)
@@ -157,9 +166,10 @@ export async function runOpenModelStructured<S extends z.ZodType>(
   instructions: string,
   input: string,
   schema: S,
-  options: { gemmaDeadlineMs?: number } = {}
+  options: { gemmaDeadlineMs?: number; skipScope?: string } = {}
 ): Promise<{ output: z.output<S>; model: string }> {
   const deadline = options.gemmaDeadlineMs ?? GEMMA_DEADLINE_MS;
+  const scope = options.skipScope ?? 'default';
 
   // LLM_PRIMARY=featherless: Featherless (Qwen 72B) first, Gemma only if it fails. For building, when Gemma's
   // free tier is slow. Unset or anything else keeps the default: Gemma first. Read on every call.
@@ -182,7 +192,7 @@ export async function runOpenModelStructured<S extends z.ZodType>(
   }
 
   let reason: string;
-  if (Date.now() < gemmaSkipUntil) {
+  if (Date.now() < (gemmaSkipUntil.get(scope) ?? 0)) {
     reason = 'skipped after a recent failure';
   } else {
     try {
@@ -192,7 +202,7 @@ export async function runOpenModelStructured<S extends z.ZodType>(
       };
     } catch (gemmaError) {
       reason = /timed out|timeout/i.test((gemmaError as Error).message) ? `no answer within ${deadline / 1000}s` : 'failed';
-      gemmaSkipUntil = Date.now() + GEMMA_SKIP_MS;
+      gemmaSkipUntil.set(scope, Date.now() + GEMMA_SKIP_MS);
       console.warn(`Gemma ${reason}, falling back to Featherless:`, (gemmaError as Error).message.slice(0, 200));
     }
   }
@@ -228,7 +238,8 @@ export async function runFeatherlessValidation<S extends z.ZodType>(
         { role: 'user', content: userPrompt },
       ],
     },
-    timeoutMs ? { timeout: timeoutMs, maxRetries: 0 } : undefined
+    // Never the client's default: a slow Featherless must cost 30 s, not minutes, before the next model is tried.
+    { timeout: timeoutMs ?? 30_000, maxRetries: 0 }
   );
 
   const raw = completion.choices?.[0]?.message?.content;
@@ -291,6 +302,8 @@ export async function runNemotronStructured<S extends z.ZodType>(
     max_tokens: options.maxTokens ?? 1024,
     // Reasoning off: we want the JSON, not a chain of thought, and it keeps latency down.
     chat_template_kwargs: { enable_thinking: false },
+    // JSON mode: long pages make the model quote text, and an unescaped quote broke the JSON in a live run.
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: `${instructions}\nReturn ONLY one raw JSON object, no markdown fences, no commentary.` },
       { role: 'user', content: input },
@@ -385,14 +398,20 @@ export async function runExtractionModelStructured<S extends z.ZodType>(
   instructions: string,
   input: string,
   schema: S,
-  options: { gemmaDeadlineMs?: number } = {}
+  options: { gemmaDeadlineMs?: number; skipScope?: string } = {}
 ): Promise<{ output: z.output<S>; model: string }> {
   if (!process.env.NVIDIA_API_KEY) return runOpenModelStructured(instructions, input, schema, options);
-  try {
-    return { output: await runNemotronStructured(instructions, input, schema, { timeoutMs: 60_000, maxTokens: 2048 }), model: 'Nemotron (NVIDIA)' };
-  } catch (nemotronError) {
-    console.warn('Nemotron failed, falling back to the open-model chain:', (nemotronError as Error).message.slice(0, 200));
-    const fallback = await runOpenModelStructured(instructions, input, schema, options);
-    return { output: fallback.output, model: `${fallback.model}, after Nemotron failed` };
+  let nemotronError: unknown;
+  // One more try when the answer was not usable JSON (a different sampling often fixes it); not for timeouts or HTTP errors.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return { output: await runNemotronStructured(instructions, input, schema, { timeoutMs: 30_000, maxTokens: 2048 }), model: 'Nemotron (NVIDIA)' };
+    } catch (err) {
+      nemotronError = err;
+      if (/timed out|HTTP|Missing|network/i.test((err as Error).message)) break;
+    }
   }
+  console.warn('Nemotron failed, falling back to the open-model chain:', (nemotronError as Error).message.slice(0, 200));
+  const fallback = await runOpenModelStructured(instructions, input, schema, options);
+  return { output: fallback.output, model: `${fallback.model}, after Nemotron failed` };
 }

@@ -1,5 +1,6 @@
 import { getPool } from '@/lib/db';
 import { assertDemoAllowed } from '@/lib/demo';
+import { requireApprover } from '@/lib/auth';
 import { errorResponse, HttpError } from '@/lib/http';
 
 /**
@@ -7,8 +8,9 @@ import { errorResponse, HttpError } from '@/lib/http';
  * Demo only: rewrites the text of one earlier audit event directly in the database, as an attacker or a careless
  * admin might, so the hash chain's detection can be shown. Reset the demo data to start a clean chain again.
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    requireApprover(request);
     assertDemoAllowed();
     const { rows } = await getPool().query<{ id: string }>(
       `UPDATE audit_events SET summary = summary || ' [edited after the fact]'

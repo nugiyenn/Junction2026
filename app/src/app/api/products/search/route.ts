@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { logAudit } from '@/lib/audit';
 import { searchProducts } from '@/lib/catalog';
+import { exposeProduct } from '@/lib/exposure';
 import { errorResponse } from '@/lib/http';
 
 const csv = z
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
       data: { q, ...filters, semantic, productIds: products.map((p) => p.id) },
     });
 
-    return Response.json({ products, semantic });
+    // The supplier and Valio's internal category are not for outside agents.
+    return Response.json({ products: products.map(exposeProduct), semantic });
   } catch (err) {
     return errorResponse(err);
   }

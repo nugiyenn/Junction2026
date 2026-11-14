@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-heading: var(--font-space), var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-inter), system-ui, sans-serif;
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -56,7 +56,7 @@
 }
 
 :root {
-  --background: #f5f7f5;
+  --background: #f6f7f6;
   --foreground: #13201b;
   --card: #ffffff;
   --card-foreground: #13201b;
@@ -139,7 +139,7 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply font-sans tabular-nums;
   }
   h1,
   h2,

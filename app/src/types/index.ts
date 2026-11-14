@@ -354,6 +354,8 @@ export interface RequestResult {
   offers: Offer[];
   /** Held quote for the default offer (offers[0]), as an agent sees it. Null when there are no offers. */
   quote: ExposedQuote | null;
+  /** A second model's independent reading of the request, compared with the first on amount, unit and delivery date. */
+  interpretationCheck: InterpretationCheck | null;
   /** What the mandate would decide about that quote if it were ordered now. Null when there is no quote. */
   policy: PolicyDecision | null;
   /** Plain-language notes on exceptions: a split, a substitution, a shortfall. */
@@ -399,6 +401,8 @@ export interface Verification {
    * unreadable: no page could be read.
    */
   status: 'confirmed' | 'contradiction' | 'no_evidence' | 'unreadable';
+  /** The model that read the pages, as it was labelled when the check ran. */
+  model?: string | null;
   statements: VerifiedStatement[];
   /** Plain-language disagreements between a page and the catalog, each with its source. */
   contradictions: string[];
@@ -463,6 +467,8 @@ export interface HealthReport {
   services: ServiceHealth[];
   /** Valio API calls saved (hits) and made (misses) by the Valkey cache. Null when Valkey is off or failing. */
   cache: { hits: number; misses: number } | null;
+  /** Whether approving an order or editing a mandate needs the approver key (APPROVER_KEY is set). */
+  approverKeyRequired: boolean;
 }
 
 // --- live-web guardrail ---
@@ -484,6 +490,8 @@ export interface RecallCheck {
    * unreadable: notices were found but none could be read.
    */
   status: 'none_found' | 'match' | 'unreadable';
+  /** The model that read the notices, as it was labelled when the check ran. */
+  model?: string | null;
   matches: RecallMatch[];
   /** Every result of the search: read notices carry a request id, the rest say why they were not read. */
   sources: VerificationSource[];
@@ -684,3 +692,20 @@ export interface EvalResults {
     allCorrect: number;
   };
 }
+
+// --- second opinion ---
+
+/**
+ * The first model reads the request; a second model reads it independently. Code multiplies the amount, so a disagreement
+ * on amount, unit or delivery date is shown to the person before anything is ordered. It is a warning, not a mandate rule.
+ */
+export interface InterpretationCheck {
+  /** agree, disagree, or unavailable when the second model did not answer in time. */
+  status: 'agree' | 'disagree' | 'unavailable';
+  secondModel: string;
+  /** What each model read, one line per differing field, for example "amount: 100 vs 1000". Empty when they agree. */
+  differences: string[];
+  /** The second model's reading in a line, or why it was unavailable. */
+  detail: string;
+}
+

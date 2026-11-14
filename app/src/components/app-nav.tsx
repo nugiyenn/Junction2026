@@ -16,7 +16,7 @@ const LINKS = [
   { href: '/models', label: 'Models' },
 ];
 
-/** Sidebar on wide screens, a scrolling bar on phones. The Approvals link shows how many orders wait for a person. */
+/** Sidebar on wide screens, a scrolling bar on phones. The Approvals link shows how many orders are waiting. */
 export function AppNav() {
   const pathname = usePathname();
   const [waiting, setWaiting] = useState(0);
@@ -46,7 +46,7 @@ export function AppNav() {
           </span>
           <span className="flex flex-col">
             <span className="font-heading text-base leading-tight font-semibold">Trusted Trade</span>
-            <span className="text-xs text-muted-foreground">Valio Aimo gateway</span>
+            <span className="text-xs text-muted-foreground">Valio Aimo</span>
           </span>
         </Link>
         <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto md:mx-0 md:flex-col md:overflow-visible">

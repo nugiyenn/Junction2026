@@ -812,6 +812,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -853,7 +870,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "approverKey": []
+          }
+        ]
       }
     },
     "/api/mandates": {
@@ -982,6 +1004,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1057,7 +1096,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "approverKey": []
+          }
+        ]
       }
     },
     "/api/audit": {
@@ -1323,8 +1367,30 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "approverKey": []
+          }
+        ]
       }
     },
     "/api/demo/tamper": {
@@ -1359,8 +1425,30 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "approverKey": []
+          }
+        ]
       }
     },
     "/api/mcp": {
@@ -2076,16 +2164,6 @@
               }
             ]
           },
-          "vendorName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "salesUnit": {
             "type": "string"
           },
@@ -2504,6 +2582,16 @@
               }
             ],
             "description": "Null when the request had no required claims and the mandate blocks no allergens."
+          },
+          "interpretationCheck": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InterpretationCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2515,7 +2603,8 @@
           "quote",
           "notes",
           "policy",
-          "liveChecks"
+          "liveChecks",
+          "interpretationCheck"
         ]
       },
       "VerifiedStatement": {
@@ -2652,6 +2741,17 @@
           },
           "summary": {
             "type": "string"
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model that read the pages, as labelled when the check ran."
           }
         },
         "required": [
@@ -3097,11 +3197,16 @@
               "hits",
               "misses"
             ]
+          },
+          "approverKeyRequired": {
+            "type": "boolean",
+            "description": "Whether approving an order or editing a mandate needs the approver key (APPROVER_KEY is set on the server)."
           }
         },
         "required": [
           "services",
-          "cache"
+          "cache",
+          "approverKeyRequired"
         ]
       },
       "RecallCheck": {
@@ -3197,6 +3302,17 @@
           },
           "summary": {
             "type": "string"
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model that read the pages, as labelled when the check ran."
           }
         },
         "required": [
@@ -3270,6 +3386,47 @@
           "products",
           "budgetSeconds"
         ]
+      },
+      "InterpretationCheck": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "agree",
+              "disagree",
+              "unavailable"
+            ]
+          },
+          "secondModel": {
+            "type": "string"
+          },
+          "differences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One line per field the two models read differently (amount, unit, delivery date). Empty when they agree."
+          },
+          "detail": {
+            "type": "string",
+            "description": "The second model's reading in a line, or why it was unavailable."
+          }
+        },
+        "required": [
+          "status",
+          "secondModel",
+          "differences",
+          "detail"
+        ],
+        "description": "A second model reads the request independently. Code compares the amount, unit and delivery date and reports any disagreement. A warning, not a mandate rule."
+      }
+    },
+    "securitySchemes": {
+      "approverKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The approver key (APPROVER_KEY). Only people hold it: agents using the agent API cannot approve orders or edit mandates. When the server has no APPROVER_KEY set, these operations are open."
       }
     }
   }

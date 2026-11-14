@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { errorResponse } from '@/lib/http';
+import { withTimeout } from '@/lib/deadline';
+import { errorResponse, HttpError } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/ratelimit';
 import { planRequest } from '@/lib/request';
 
@@ -20,7 +21,13 @@ export async function POST(request: Request) {
   try {
     const { mandateId, text } = Body.parse(await request.json());
     const headers = await enforceRateLimit('requests', mandateId);
-    return Response.json(await planRequest(mandateId, text), { status: 201, headers });
+    // The route may run for 300 s on the host; answer with a clear error a little before that instead of a platform timeout page.
+    const result = await withTimeout(
+      planRequest(mandateId, text),
+      270_000,
+      () => new HttpError(504, 'This request took too long. Nothing was ordered. Try again.')
+    );
+    return Response.json(result, { status: 201, headers });
   } catch (err) {
     return errorResponse(err);
   }

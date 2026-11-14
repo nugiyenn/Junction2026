@@ -206,6 +206,9 @@ await pool.query(`
     summary text NOT NULL
   );
 
+  ALTER TABLE verifications ADD COLUMN IF NOT EXISTS model text;
+  ALTER TABLE recall_checks ADD COLUMN IF NOT EXISTS model text;
+
   CREATE TABLE IF NOT EXISTS audit_events (
     id bigserial PRIMARY KEY,
     at timestamptz NOT NULL DEFAULT now(),

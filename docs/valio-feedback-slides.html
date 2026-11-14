@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trusted Trade Agents: feedback session with Valio Aimo</title>
+<style>
+  :root { --ink:#13201B; --muted:#586660; --line:#E1E6E2; --bg:#FFFFFF; --soft:#F5F7F5; --accent:#0B5D4B; --accent-soft:#E4F0EC; --warn:#7A4E00; --warn-soft:#FFF3D6; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family: Inter, "Helvetica Neue", Arial, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .slide { position:absolute; inset:0; display:none; flex-direction:column; justify-content:center; padding:7vh 8vw 11vh; gap:2.4vh; animation: fade .25s ease; }
+  .slide.active { display:flex; }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  .kicker { font-size:clamp(11px,1.5vh,15px); letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0; }
+  h1 { font-size:clamp(30px,6vh,64px); line-height:1.08; margin:0; letter-spacing:-.02em; font-weight:650; max-width:22ch; }
+  h2 { font-size:clamp(24px,4.6vh,48px); line-height:1.12; margin:0; letter-spacing:-.015em; font-weight:650; max-width:26ch; }
+  p, li { font-size:clamp(15px,2.5vh,26px); line-height:1.45; margin:0; }
+  .lead { color:var(--muted); max-width:44ch; }
+  ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:1.3vh; }
+  ul.dots li { padding-left:1.1em; position:relative; }
+  ul.dots li::before { content:""; position:absolute; left:0; top:.62em; width:.42em; height:.42em; border-radius:50%; background:var(--accent); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:2.5vw; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1.6vw; }
+  .card { border:1px solid var(--line); border-radius:14px; padding:2.2vh 1.6vw; background:var(--bg); display:flex; flex-direction:column; gap:1vh; }
+  .card.soft { background:var(--soft); }
+  .card h3 { font-size:clamp(15px,2.4vh,24px); margin:0; font-weight:650; }
+  .card p, .card li { font-size:clamp(13px,2.1vh,21px); color:var(--muted); }
+  .card .big { font-size:clamp(20px,3.6vh,38px); color:var(--ink); font-weight:650; letter-spacing:-.01em; }
+  .tag { display:inline-block; font-size:clamp(11px,1.7vh,16px); padding:.35em .8em; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-weight:600; width:fit-content; }
+  .tag.warn { background:var(--warn-soft); color:var(--warn); }
+  table { border-collapse:collapse; width:100%; font-size:clamp(13px,2.1vh,21px); }
+  th, td { text-align:left; padding:1.1vh .8vw; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:clamp(11px,1.7vh,16px); letter-spacing:.06em; text-transform:uppercase; }
+  .ask { margin-top:1vh; border-left:4px solid var(--accent); background:var(--accent-soft); padding:1.8vh 1.6vw; border-radius:0 12px 12px 0; display:flex; flex-direction:column; gap:.8vh; }
+  .ask strong { font-size:clamp(11px,1.7vh,15px); letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+  .ask p { color:var(--ink); font-size:clamp(15px,2.5vh,26px); font-weight:550; }
+  .flow { display:flex; align-items:stretch; gap:.6vw; }
+  .step { flex:1; border:1px solid var(--line); border-radius:12px; padding:2vh .9vw; display:flex; flex-direction:column; gap:.8vh; background:var(--bg); }
+  .step b { color:var(--accent); font-size:clamp(11px,1.8vh,17px); }
+  .step span { font-size:clamp(13px,2.1vh,21px); font-weight:600; }
+  .step small { font-size:clamp(11px,1.7vh,16px); color:var(--muted); line-height:1.35; }
+  .arrow { align-self:center; color:var(--muted); font-size:clamp(14px,2.4vh,24px); }
+  .qs { counter-reset:q; display:flex; flex-direction:column; gap:1.5vh; }
+  .qs li { counter-increment:q; display:flex; gap:1vw; align-items:baseline; }
+  .qs li::before { content:counter(q); flex:none; width:1.6em; height:1.6em; border-radius:50%; background:var(--accent); color:#fff; font-size:.8em; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
+  .foot { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; align-items:center; padding:2vh 8vw; font-size:clamp(11px,1.6vh,14px); color:var(--muted); background:linear-gradient(transparent, #fff 55%); pointer-events:none; }
+  .notes { display:none; position:fixed; left:0; right:0; bottom:0; max-height:34vh; overflow:auto; background:var(--ink); color:#fff; padding:2vh 8vw 3vh; z-index:5; }
+  .notes p { color:#fff; font-size:clamp(13px,2vh,19px); }
+  .notes b { color:#9ad1c0; letter-spacing:.08em; font-size:.8em; text-transform:uppercase; }
+  body.notes-on .notes.show { display:block; }
+  .hint { position:fixed; top:1.6vh; right:2vw; font-size:12px; color:var(--muted); }
+  @media (max-width:760px) { .grid2, .grid3 { grid-template-columns:1fr; } .flow { flex-direction:column; } .arrow { transform:rotate(90deg); } .slide { overflow:auto; justify-content:flex-start; padding-top:6vh; } }
+  @media print {
+    @page { size: A4 landscape; margin: 0; }
+    html, body { height:auto; }
+    .slide { position:relative; display:flex !important; min-height:100vh; page-break-after:always; animation:none; }
+    .foot, .hint, .notes { display:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="hint">← → to move · N for talking points</div>
+
+<!-- 1 -->
+<section class="slide active" data-notes="Introduce yourselves and the purpose: this is not a sales pitch. We built a prototype in a weekend using synthetic data and want to learn whether it matches how Valio and its customers really work. Ask for 15 minutes and permission to take notes.">
+  <p class="kicker">Junction 2026 · Prototype · Synthetic data</p>
+  <h1>Letting a buyer's AI agent order from Valio Aimo, safely</h1>
+  <p class="lead">What we built, what we assumed, and what we would like you to correct.</p>
+  <div class="ask"><strong>What we ask of you</strong><p>15 minutes. Tell us where we are wrong.</p></div>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-notes="State the assumption plainly and ask whether it is true. Listen first. Note who orders at customers today (a person, an ERP, EDI) and whether anyone has asked Valio about agents.">
+  <p class="kicker">The situation we assumed</p>
+  <h2>Buyers will start letting AI agents place orders</h2>
+  <ul class="dots">
+    <li>Agents can search, compare and order faster than a person.</li>
+    <li>Valio needs them to stay inside rules the customer sets.</li>
+    <li>Prices, stock and suppliers are not for every agent to see.</li>
+  </ul>
+  <div class="ask"><strong>Feedback</strong><p>Is this happening with your customers yet? Who orders for them today?</p></div>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-notes="Walk the six steps left to right in one sentence each. A language model only reads the request; amounts, prices, policy and approval are ordinary code. Mention the demo: a hotel asking for 100 L is auto-approved, 1,000 L goes to a person.">
+  <p class="kicker">What we built</p>
+  <h2>From a plain-language request to an approved order</h2>
+  <div class="flow">
+    <div class="step"><b>1</b><span>Request</span><small>"1,000 L lactose-free milk by Monday"</small></div><div class="arrow">→</div>
+    <div class="step"><b>2</b><span>Lookup</span><small>Search catalog, price a short list live</small></div><div class="arrow">→</div>
+    <div class="step"><b>3</b><span>Offers</span><small>Cheapest, most reliable, lowest CO₂</small></div><div class="arrow">→</div>
+    <div class="step"><b>4</b><span>Signed quote</span><small>Fixed price, held 15 minutes</small></div><div class="arrow">→</div>
+    <div class="step"><b>5</b><span>Order</span><small>Customer rules decide</small></div><div class="arrow">→</div>
+    <div class="step"><b>6</b><span>Approval</span><small>A named person, if needed</small></div>
+  </div>
+  <p class="lead">A language model only reads the request. Quantities, prices, rules and approval are code.</p>
+  <div class="ask"><strong>Feedback</strong><p>Does this match how an order really moves? What is missing or in the wrong place?</p></div>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-notes="Explain that we compare on more than price. Ask which of these a buyer really decides on, and whether carbon is a real criterion or a nice-to-have. Mention the split-order and substitute behaviour when stock is short.">
+  <p class="kicker">Offers</p>
+  <h2>Three ways to fill the same need</h2>
+  <div class="grid3">
+    <div class="card"><h3>Cheapest</h3><p class="big">€ per unit</p><p>Total price ex VAT, per litre or kilo</p></div>
+    <div class="card"><h3>Most reliable</h3><p class="big">% delivered in full</p><p>Delivery reliability from Valio's own history</p></div>
+    <div class="card"><h3>Lowest carbon</h3><p class="big">kg CO₂-eq / kg</p><p>Product-group average from Valio's data</p></div>
+  </div>
+  <ul class="dots">
+    <li>Short stock: split across up to three products using confirmed stock only.</li>
+    <li>Nothing fits: Valio-listed substitutes, always signed off by a person.</li>
+  </ul>
+  <div class="ask"><strong>Feedback</strong><p>Which of these do buyers really decide on? Is carbon a real requirement yet?</p></div>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-notes="This is the core of the guardrails. Show the two demo mandates. Ask for real numbers: typical auto-approve limits, who signs off, whether schools and hotels differ. Write down thresholds they mention.">
+  <p class="kicker">Customer rules</p>
+  <h2>The buyer decides what the agent may do alone</h2>
+  <table>
+    <tr><th>Rule</th><th>Demo hotel group</th><th>Demo school kitchens</th></tr>
+    <tr><td>Agent decides alone up to</td><td>€500</td><td>€300</td></tr>
+    <tr><td>Rejected above</td><td>€5,000</td><td>€2,000</td></tr>
+    <tr><td>Blocked allergens</td><td>none</td><td>tree nuts, peanuts</td></tr>
+    <tr><td>Minimum delivery reliability</td><td>none</td><td>90%</td></tr>
+    <tr><td>Carbon limit</td><td>none</td><td>5 kg CO₂-eq / kg</td></tr>
+    <tr><td>Unconfirmed supplier stock</td><td>allowed</td><td>needs a person</td></tr>
+  </table>
+  <p class="lead">Anything else goes to a person: a substitute, an allergen risk, a live web source that disagrees.</p>
+  <div class="ask"><strong>Feedback</strong><p>Do customers have limits like these? Who approves, and what are typical thresholds?</p></div>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-notes="The data firewall. The agent gets its own customer price and whether Valio can fill the order, not the commercial detail. Ask whether the line is in the right place and what else must never leave Valio. Mention that the exposure is enforced in one place in the code.">
+  <p class="kicker">Data firewall</p>
+  <h2>What the agent sees, and what Valio keeps</h2>
+  <div class="grid2">
+    <div class="card soft"><h3>The agent sees</h3>
+      <ul><li>Its own customer price</li><li>Can fill: yes or no</li><li>Stock confidence, not amounts</li><li>Allergens, reliability, carbon</li></ul></div>
+    <div class="card"><h3>Valio keeps</h3>
+      <ul><li>List price and discount</li><li>Supplier</li><li>Exact stock quantities</li><li>Internal category codes</li></ul></div>
+  </div>
+  <div class="ask"><strong>Feedback</strong><p>Is this the right line? Anything else that must never reach an outside agent?</p></div>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-notes="Two trust mechanisms: Valio signs every quote so the buyer's agent can verify it without calling Valio, and every step is written to a plain-language record that is chained so edits show up. Be honest: the chain shows tampering, it does not prevent it. Ask what Valio's IT and compliance would require.">
+  <p class="kicker">Trust and record</p>
+  <h2>Signed quotes and a record nobody can quietly edit</h2>
+  <div class="grid2">
+    <div class="card"><h3>Signed by Valio</h3><ul>
+      <li>Public key at a standard address</li><li>Price held for 15 minutes</li><li>The agent verifies without calling Valio</li></ul></div>
+    <div class="card"><h3>Decision record</h3><ul>
+      <li>Every agent and human step, in plain language</li><li>Each entry hashed with the one before</li><li>Edits break the chain and show up</li></ul></div>
+  </div>
+  <p class="lead">It reveals tampering. It does not prevent it.</p>
+  <div class="ask"><strong>Feedback</strong><p>What would Valio's IT and compliance need from an audit trail?</p></div>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-notes="Explain that catalog allergen data can be missing or wrong, so we check live sources and show the evidence. Every claim comes with a quote that really appears on the page, and a link. Ask how reliable allergen data is in practice and who is liable if an agent orders the wrong thing.">
+  <p class="kicker">Live web checks</p>
+  <h2>Allergen claims and recalls, checked against real sources</h2>
+  <ul class="dots">
+    <li>Product pages are read and each claim is kept only if its quote is on the page.</li>
+    <li>The Finnish Food Authority's recall notices are searched for the product.</li>
+    <li>A source that disagrees with the catalog sends the order to a person.</li>
+    <li>Every result shows its source link.</li>
+  </ul>
+  <p class="lead">"No recall found" means the search found none, not that none exists.</p>
+  <div class="ask"><strong>Feedback</strong><p>How reliable is allergen data in practice? Who is liable if an agent orders the wrong product?</p></div>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-notes="Openness. The same gateway is a documented REST API and an MCP server that any compatible agent can use. There is deliberately no tool for an agent to approve an order or change a customer's rules. Also mention the protection for Valio's own API: only a short list is priced live, answers are cached briefly, and each customer has rate limits. Be honest that agent authentication is not built yet.">
+  <p class="kicker">Open interface</p>
+  <h2>Any agent can connect. None can approve.</h2>
+  <div class="grid2">
+    <div class="card"><h3>How agents connect</h3><ul>
+      <li>REST API with an OpenAPI description</li><li>MCP server, seven tools</li><li>No tool to approve or change a customer's rules</li></ul></div>
+    <div class="card"><h3>Protecting Valio's API</h3><ul>
+      <li>Only a short list is priced live</li><li>Short cache on price and stock</li><li>Rate limits per customer</li></ul></div>
+  </div>
+  <div class="ask"><strong>Feedback</strong><p>How should an agent prove who it acts for? Would Valio offer an endpoint like this?</p></div>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-notes="Say these before they ask. They help the audience see where feedback is most useful.">
+  <p class="kicker">What we have not solved</p>
+  <h2>Honest limits of the prototype</h2>
+  <ul class="dots">
+    <li>Orders stay in our database: the mock has no order endpoint.</li>
+    <li>No agent login yet: callers pass a customer id.</li>
+    <li>Search by meaning covers only part of the catalog.</li>
+    <li>All data is synthetic, so prices and stock are not real.</li>
+  </ul>
+  <div class="ask"><strong>Feedback</strong><p>Which of these would block a real pilot first?</p></div>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-notes="This is the slide to keep on screen during the conversation. Take notes against each number. Ask for permission to quote anything useful, with the person's name.">
+  <p class="kicker">Our questions</p>
+  <h2>Where we would value your view</h2>
+  <ol class="qs" style="list-style:none;margin:0;padding:0">
+    <li>Who places orders for customers today, and could an agent do it?</li>
+    <li>Which limits and approvals do real customers use?</li>
+    <li>Who signs off a substitute, and when is a split order acceptable?</li>
+    <li>What must an outside agent never see?</li>
+    <li>How reliable is allergen data, and who carries the risk?</li>
+    <li>Is carbon a real buying criterion?</li>
+    <li>How should agents authenticate?</li>
+  </ol>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-notes="Close by asking for a concrete next step and a name. Thank them and ask whether you may quote their feedback in your submission.">
+  <p class="kicker">Next</p>
+  <h2>Where would you pilot this first?</h2>
+  <ul class="dots">
+    <li>Which customer segment, and who should we talk to?</li>
+    <li>What would you need to see before a pilot?</li>
+    <li>May we quote your feedback in our submission?</li>
+  </ul>
+  <div class="ask"><strong>Thank you</strong><p>Your feedback shapes the next version.</p></div>
+</section>
+
+<div class="foot"><span>Trusted Trade Agents · Junction 2026 · synthetic data</span><span id="counter"></span></div>
+<div class="notes" id="notes"><p><b>Talking points</b></p><p id="notes-text"></p></div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var counter = document.getElementById('counter');
+  var notesText = document.getElementById('notes-text');
+  var notes = document.getElementById('notes');
+  var i = 0;
+  try { var saved = parseInt(localStorage.getItem('valio-feedback-slide'), 10); if (saved >= 0 && saved < slides.length) i = saved; } catch (e) {}
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+    notesText.textContent = slides[i].getAttribute('data-notes') || '';
+    notes.classList.add('show');
+    try { localStorage.setItem('valio-feedback-slide', String(i)); } catch (e) {}
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'n' || e.key === 'N') document.body.classList.toggle('notes-on');
+  });
+  document.addEventListener('click', function (e) { if (e.target.closest('a, button')) return; show(e.clientX > window.innerWidth / 2 ? i + 1 : i - 1); });
+  show(i);
+})();
+</script>
+</body>
+</html>

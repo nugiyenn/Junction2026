@@ -7,13 +7,13 @@ import { Page, Panel, Pill } from '@/components/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { EvalModelResult, EvalResults } from '@/types';
 
-/** What each model is used for. A role is a statement about the code, not a measured result. */
+/** What each model is used for (a statement about the code, not a measured result). */
 const ROLE: Record<string, string> = {
-  'gemma-4': 'Reads purchase requests. First choice, open weights.',
-  'qwen-2.5-72b': 'Fallback when Gemma is slow or fails.',
-  'gemini-3.8-flash': 'Hosted reference, the default id in llm.ts. Not in the request path.',
-  'gemini-3.1-flash-lite': 'Hosted reference. Not in the request path (Gemini serves embeddings).',
-  nemotron: 'Reads long web pages for the live checks, when its key is set.',
+  'gemma-4': 'Reads requests · first choice',
+  'qwen-2.5-72b': 'Fallback reader',
+  'gemini-3.8-flash': 'Hosted reference · not in request path',
+  'gemini-3.1-flash-lite': 'Hosted reference · not in request path',
+  nemotron: 'Reads web pages for live checks',
 };
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -41,7 +41,7 @@ function ModelRow({ m }: { m: EvalModelResult }) {
         </>
       ) : (
         <TableCell colSpan={8}>
-          <Pill tone="warn">Not run: {m.reason}</Pill>
+          <Pill tone="warn">Not run · {m.reason}</Pill>
         </TableCell>
       )}
     </TableRow>
@@ -64,14 +64,6 @@ export function ModelsView() {
 
   return (
     <Page title="Models">
-      <Panel>
-        <h2 className="text-base font-semibold">The model interprets, code decides</h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          A model only turns a request into fields. Amounts, prices, stock and approval are computed by code, and the mandate checks the result. So a wrong or
-          missing answer from any model cannot place an order the mandate does not allow.
-        </p>
-      </Panel>
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Could not load the evaluation</AlertTitle>
@@ -82,9 +74,7 @@ export function ModelsView() {
       {data && (
         <>
           <Panel className="overflow-x-auto">
-            <h2 className="mb-3 text-base font-semibold">
-              Reading {data.caseCount} hand-labelled purchase requests
-            </h2>
+            <h2 className="mb-3 text-base font-semibold">Request reading · {data.caseCount} labelled cases</h2>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -106,37 +96,53 @@ export function ModelsView() {
               </TableBody>
             </Table>
             <p className="mt-3 text-xs text-muted-foreground">
-              Shares are of all {data.caseCount} requests; a failed call counts as wrong. Latency is over valid answers. Run {new Date(data.generatedAt).toLocaleDateString('en-GB')}, prompt dated {data.today}.
+              Run {new Date(data.generatedAt).toLocaleDateString('en-GB')} · prompt {data.today} · failed call = wrong · latency over valid answers
             </p>
           </Panel>
 
           <Panel>
-            <h2 className="text-base font-semibold">Do the models agree on what code multiplies?</h2>
+            <h2 className="text-base font-semibold">Model agreement</h2>
             {data.agreementSummary.comparable > 0 ? (
-              <p className="mt-1 text-sm">
-                On {data.agreementSummary.agreed} of {data.agreementSummary.comparable} requests, every model that answered gave the same amount and unit.
-                On {data.agreementSummary.allCorrect}, all of them also matched the label.
-                {ran.length < data.models.length && ' Models that did not run are not counted.'}
-              </p>
+              <dl className="m-0 mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm">
+                <dt className="text-muted-foreground">Same amount and unit</dt>
+                <dd className="font-semibold">
+                  {data.agreementSummary.agreed} / {data.agreementSummary.comparable}
+                </dd>
+                <dt className="text-muted-foreground">All match label</dt>
+                <dd className="font-semibold">
+                  {data.agreementSummary.allCorrect} / {data.agreementSummary.comparable}
+                </dd>
+                {ran.length < data.models.length && (
+                  <>
+                    <dt className="text-muted-foreground">Models not run</dt>
+                    <dd className="font-semibold">{data.models.length - ran.length}</dd>
+                  </>
+                )}
+              </dl>
             ) : (
-              <p className="mt-1 text-sm text-muted-foreground">Fewer than two models answered, so there is nothing to compare.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Fewer than two models answered.</p>
             )}
             {disagreements.length > 0 && (
-              <ul className="mt-3 flex flex-col gap-3">
-                {disagreements.map((a) => (
-                  <li key={a.caseId} className="rounded-xl border p-3 text-sm">
-                    <div className="font-medium">“{a.text}”</div>
-                    <div className="text-muted-foreground">Label: {answer(a.expected)}</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {data.models.filter((m) => m.status === 'ran').map((m) => (
-                        <Pill key={m.id} tone={!a.answers[m.id] ? 'plain' : a.wrong.includes(m.id) ? 'bad' : 'ok'}>
-                          {m.label}: {answer(a.answers[m.id])}
-                        </Pill>
-                      ))}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <details className="mt-3">
+                <summary className="min-h-9 cursor-pointer py-1.5 text-sm text-primary">Disagreements ({disagreements.length})</summary>
+                <ul className="mt-2 flex flex-col gap-3">
+                  {disagreements.map((a) => (
+                    <li key={a.caseId} className="rounded-xl border p-3 text-sm">
+                      <div className="font-medium">“{a.text}”</div>
+                      <div className="text-muted-foreground">Label · {answer(a.expected)}</div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {data.models
+                          .filter((m) => m.status === 'ran')
+                          .map((m) => (
+                            <Pill key={m.id} tone={!a.answers[m.id] ? 'plain' : a.wrong.includes(m.id) ? 'bad' : 'ok'}>
+                              {m.label}: {answer(a.answers[m.id])}
+                            </Pill>
+                          ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </Panel>
         </>

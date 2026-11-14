@@ -19,6 +19,7 @@ export function errorResponse(err: unknown): Response {
     const error = err.issues.map((i) => `${i.path.join('.') || 'request'}: ${i.message}`).join('; ');
     return Response.json({ error } satisfies ApiError, { status: 400 });
   }
+  if (err instanceof SyntaxError) return Response.json({ error: 'The request body is not valid JSON.' } satisfies ApiError, { status: 400 });
   console.error(err);
   const error = err instanceof Error ? err.message : 'Unknown error';
   return Response.json({ error } satisfies ApiError, { status: 500 });

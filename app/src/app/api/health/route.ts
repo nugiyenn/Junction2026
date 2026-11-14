@@ -1,3 +1,4 @@
+import { approverKeyConfigured } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 import { errorResponse } from '@/lib/http';
 import { getKV, readCacheStats, valkeyConfigured } from '@/lib/cache';
@@ -35,7 +36,7 @@ export async function GET() {
         console.error('Could not read cache stats:', err);
       }
     }
-    return Response.json({ services: [postgres, valkey], cache } satisfies HealthReport);
+    return Response.json({ services: [postgres, valkey], cache, approverKeyRequired: approverKeyConfigured() } satisfies HealthReport);
   } catch (err) {
     return errorResponse(err);
   }

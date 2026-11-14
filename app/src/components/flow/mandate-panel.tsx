@@ -9,12 +9,12 @@ import { allergenName, call } from './api';
 const PREFERENCES: { value: OfferPreference; label: string }[] = [
   { value: 'cheapest', label: 'Cheapest' },
   { value: 'most_reliable', label: 'Most reliable' },
-  { value: 'lowest_co2', label: 'Lowest carbon footprint' },
+  { value: 'lowest_co2', label: 'Lowest carbon' },
 ];
 
 const COMMON_ALLERGENS = ['AM', 'AE', 'AF', 'AN', 'AP', 'AS', 'AY', 'AW'];
 
-/** The buyer's side: what the agent may decide alone. Edits take effect on the next order. */
+/** The buyer's side: what the agent may decide alone. */
 export function MandatePanel({
   mandate,
   onSaved,
@@ -68,15 +68,15 @@ export function MandatePanel({
     <div className="flex flex-col gap-3 text-sm">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground">Agent decides alone up to (€, ex VAT)</span>
-          <Input type="number" min={0} value={auto} onChange={(e) => setAuto(e.target.value)} />
+          <span className="text-muted-foreground">Auto-approve up to (€)</span>
+          <Input className="h-11" type="number" min={0} value={auto} onChange={(e) => setAuto(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground">Rejected above (€)</span>
-          <Input type="number" min={0} value={max} onChange={(e) => setMax(e.target.value)} />
+          <span className="text-muted-foreground">Reject above (€)</span>
+          <Input className="h-11" type="number" min={0} value={max} onChange={(e) => setMax(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground">Human check below delivery reliability (%)</span>
+          <span className="text-muted-foreground">Min. reliability (%)</span>
           <Input
             type="number"
             min={0}
@@ -90,15 +90,15 @@ export function MandatePanel({
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground">Human check above carbon footprint (kg CO₂-eq per kg)</span>
-          <Input type="number" min={0} step="any" placeholder="no rule" value={co2} onChange={(e) => setCo2(e.target.value)} />
+          <span className="text-muted-foreground">Max. carbon (kg CO₂-eq/kg)</span>
+          <Input className="h-11" type="number" min={0} step="any" placeholder="no rule" value={co2} onChange={(e) => setCo2(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground">Offer the agent holds by default</span>
+          <span className="text-muted-foreground">Default offer</span>
           <select
             value={preferred}
             onChange={(e) => setPreferred(e.target.value as OfferPreference)}
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="h-10 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {PREFERENCES.map((p) => (
               <option key={p.value} value={p.value}>
@@ -109,20 +109,22 @@ export function MandatePanel({
         </label>
       </div>
 
-      <label className="flex items-center gap-2">
+      <label className="flex min-h-11 items-center gap-2">
         <input type="checkbox" checked={confirmedStock} onChange={(e) => setConfirmedStock(e.target.checked)} />
-        Human check when stock is unconfirmed (supplier ships it, quantity unknown)
+        Require confirmed stock
       </label>
 
       <div className="flex flex-col gap-1">
-        <span className="text-muted-foreground">Blocked allergens: contained = rejected, may contain = human check</span>
+        <span className="text-muted-foreground">
+          Blocked allergens <span className="text-xs">· contains rejects, may contain needs approval</span>
+        </span>
         <div className="flex flex-wrap gap-2">
           {shown.map((code) => (
             <button
               key={code}
               type="button"
               onClick={() => toggle(code)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs ${
+              className={`min-h-11 rounded-full border px-3.5 text-xs ${
                 allergens.includes(code) ? 'border-destructive bg-destructive/10 text-destructive' : 'text-muted-foreground'
               }`}
             >
@@ -133,11 +135,10 @@ export function MandatePanel({
       </div>
 
       <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={saving} className="self-start">
+        <Button onClick={save} disabled={saving} className="h-11 self-start px-5">
           {saving ? 'Saving…' : 'Save mandate'}
         </Button>
-        <span className="text-xs text-muted-foreground">Every change is written to the decision record.</span>
-      </div>
+              </div>
     </div>
   );
 }

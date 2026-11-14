@@ -7,18 +7,15 @@ import type { LiveChecks, RecallCheck, Verification } from '@/types';
 import { allergenName, call } from './api';
 
 const STATUS: Record<Verification['status'], { label: string; tone: Tone }> = {
-  confirmed: { label: 'Confirmed on the web', tone: 'ok' },
+  confirmed: { label: 'Confirmed', tone: 'ok' },
   contradiction: { label: 'Source disagrees', tone: 'bad' },
-  no_evidence: { label: 'No evidence found', tone: 'plain' },
-  unreadable: { label: 'Sources unreadable', tone: 'plain' },
+  no_evidence: { label: 'No evidence', tone: 'plain' },
+  unreadable: { label: 'Unreadable', tone: 'plain' },
 };
 
 const STANCE: Record<string, string> = { contains: 'contains', may_contain: 'may contain', free_from: 'free from' };
 
-/**
- * Checks one product's allergen and label claims against the live web (Oxylabs search + scrape).
- * It is an explicit action, because it spends live calls and takes up to a couple of minutes.
- */
+/** Checks one product's allergen and label claims against the live web (explicit action: it spends live calls). */
 export function VerifyCheck({ productId, name }: { productId: string; name: string }) {
   const [result, setResult] = useState<Verification | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,14 +34,14 @@ export function VerifyCheck({ productId, name }: { productId: string; name: stri
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[10px] border p-3 text-[13px]">
+    <div className="flex flex-col gap-2 rounded-lg border p-3 text-[13px]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="min-w-0 flex-1 basis-48 font-medium" title={name}>
           {name}
         </span>
         {result && <Pill tone={STATUS[result.status].tone}>{STATUS[result.status].label}</Pill>}
         <Button variant="outline" className="h-9" onClick={run} disabled={busy}>
-          {busy ? 'Reading sources…' : result ? 'Re-check' : 'Check sources'}
+          {busy ? 'Reading…' : result ? 'Re-check' : 'Check sources'}
         </Button>
       </div>
 
@@ -52,10 +49,10 @@ export function VerifyCheck({ productId, name }: { productId: string; name: stri
 
       {result && (
         <>
-          <p className="text-muted-foreground">{result.summary}</p>
           <details>
-            <summary className="min-h-9 cursor-pointer py-1.5 text-primary">Show sources</summary>
+            <summary className="min-h-9 cursor-pointer py-1.5 text-primary">Summary and sources ({result.sources.length})</summary>
             <div className="flex flex-col gap-2 pt-1">
+              <p className="text-muted-foreground">{result.summary}</p>
               {result.statements.map((s, i) => (
                 <p key={i} className="text-muted-foreground">
                   <strong className="text-foreground">
@@ -87,9 +84,9 @@ export function VerifyCheck({ productId, name }: { productId: string; name: stri
 }
 
 const RECALL: Record<RecallCheck['status'], { label: string; tone: Tone }> = {
-  none_found: { label: 'No recall found', tone: 'ok' },
-  match: { label: 'Recall notice found', tone: 'bad' },
-  unreadable: { label: 'Recall notices unreadable', tone: 'plain' },
+  none_found: { label: 'No recall', tone: 'ok' },
+  match: { label: 'Recall notice', tone: 'bad' },
+  unreadable: { label: 'Recall unreadable', tone: 'plain' },
 };
 
 const hostname = (url: string) => {
@@ -100,10 +97,7 @@ const hostname = (url: string) => {
   }
 };
 
-/**
- * What the live web said about the products an offer would order, checked automatically while the request was
- * planned: allergen and label claims, and recall notices. A check that did not run is shown, not hidden.
- */
+/** Automatic live web checks for the ordered products: allergen and label claims, recall notices. Checks that did not run are shown. */
 export function LiveChecksSummary({ checks }: { checks: LiveChecks }) {
   return (
     <Panel className="flex flex-col gap-3" aria-label="Live web checks">
@@ -131,7 +125,7 @@ export function LiveChecksSummary({ checks }: { checks: LiveChecks }) {
         </div>
       ))}
       <details>
-        <summary className="min-h-9 cursor-pointer py-1.5 text-[13px] text-primary">Show sources</summary>
+        <summary className="min-h-9 cursor-pointer py-1.5 text-[13px] text-primary">Sources and models</summary>
         <div className="flex flex-col gap-3 pt-1 text-xs text-muted-foreground">
           {checks.products.map((p) => {
             const sources = [
@@ -141,6 +135,12 @@ export function LiveChecksSummary({ checks }: { checks: LiveChecks }) {
             return (
               <div key={p.productId} className="flex flex-col gap-1">
                 <strong className="text-foreground">{p.name}</strong>
+                {(p.verification?.model || p.recall?.model) && (
+                  <p>
+                    {p.verification?.model && <>Pages read by {p.verification.model}. </>}
+                    {p.recall?.model && <>Recall notices read by {p.recall.model}.</>}
+                  </p>
+                )}
                 {p.recall && (
                   <p>
                     Recall search: <code>{p.recall.query}</code>

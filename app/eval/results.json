@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T00:40:14.597Z",
+  "generatedAt": "2026-11-14T01:05:52.160Z",
   "today": "2026-11-14",
   "caseCount": 12,
   "models": [
@@ -7,34 +7,34 @@
       "id": "gemma-4",
       "label": "Gemma 4 26B",
       "modelId": "gemma-4-26b-a4b-it",
-      "ranAt": "2026-11-14T00:26:42.559Z",
+      "ranAt": "2026-11-14T01:03:10.797Z",
       "status": "ran",
       "reason": null,
       "summary": {
         "attempts": 12,
-        "valid": 10,
-        "validRate": 0.8333333333333334,
+        "valid": 12,
+        "validRate": 1,
         "fieldAccuracy": {
-          "product": 0.8333333333333334,
-          "amount": 0.8333333333333334,
-          "amountUnit": 0.8333333333333334,
-          "deliveryDate": 0.8333333333333334,
-          "requiredClaims": 0.8333333333333334
+          "product": 1,
+          "amount": 1,
+          "amountUnit": 1,
+          "deliveryDate": 1,
+          "requiredClaims": 1
         },
-        "exactRate": 0.8333333333333334,
-        "latencyP50Ms": 12519,
-        "latencyP95Ms": 17279,
+        "exactRate": 1,
+        "latencyP50Ms": 12384,
+        "latencyP95Ms": 17105,
         "errors": {
           "timeout": 0,
           "invalid_output": 0,
-          "error": 2
+          "error": 0
         }
       },
       "runs": [
         {
           "caseId": "hotel-milk-1000",
           "ok": true,
-          "latencyMs": 12341,
+          "latencyMs": 12249,
           "output": {
             "product": "milk",
             "amount": 1000,
@@ -57,7 +57,7 @@
         {
           "caseId": "hotel-milk-100",
           "ok": true,
-          "latencyMs": 11575,
+          "latencyMs": 11516,
           "output": {
             "product": "milk",
             "amount": 100,
@@ -79,17 +79,29 @@
         },
         {
           "caseId": "school-granola-20",
-          "ok": false,
-          "latencyMs": 494,
-          "output": null,
-          "error": "500 [{\"error\":{\"code\":500,\"message\":\"Internal error encountered.\",\"status\":\"INTERNAL\"}}]",
-          "errorKind": "error",
-          "correct": null
+          "ok": true,
+          "latencyMs": 12207,
+          "output": {
+            "product": "granola",
+            "amount": 20,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-17",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "school-granola-100",
           "ok": true,
-          "latencyMs": 11124,
+          "latencyMs": 11307,
           "output": {
             "product": "granola",
             "amount": 100,
@@ -110,7 +122,7 @@
         {
           "caseId": "fi-milk-500",
           "ok": true,
-          "latencyMs": 13422,
+          "latencyMs": 13317,
           "output": {
             "product": "milk",
             "amount": 500,
@@ -133,7 +145,7 @@
         {
           "caseId": "fi-oats-25",
           "ok": true,
-          "latencyMs": 12519,
+          "latencyMs": 12384,
           "output": {
             "product": "oat flakes",
             "amount": 25,
@@ -154,7 +166,7 @@
         {
           "caseId": "fi-potato-tonnes",
           "ok": true,
-          "latencyMs": 17279,
+          "latencyMs": 17105,
           "output": {
             "product": "potatoes",
             "amount": 2000,
@@ -175,7 +187,7 @@
         {
           "caseId": "messy-oat-milk-cases",
           "ok": true,
-          "latencyMs": 16725,
+          "latencyMs": 16792,
           "output": {
             "product": "oat milk",
             "amount": 10,
@@ -195,17 +207,31 @@
         },
         {
           "caseId": "messy-cream-dl",
-          "ok": false,
-          "latencyMs": 578,
-          "output": null,
-          "error": "500 [{\"error\":{\"code\":500,\"message\":\"Internal error encountered.\",\"status\":\"INTERNAL\"}}]",
-          "errorKind": "error",
-          "correct": null
+          "ok": true,
+          "latencyMs": 15463,
+          "output": {
+            "product": "cream",
+            "amount": 25,
+            "amountUnit": "L",
+            "deliveryDate": "2026-11-20",
+            "requiredClaims": [
+              "FREE_FROM_LACTOSE"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "messy-butter-grams",
           "ok": true,
-          "latencyMs": 11906,
+          "latencyMs": 11871,
           "output": {
             "product": "butter",
             "amount": 0.5,
@@ -226,7 +252,7 @@
         {
           "caseId": "two-claims-yoghurt",
           "ok": true,
-          "latencyMs": 13320,
+          "latencyMs": 13315,
           "output": {
             "product": "yoghurt",
             "amount": 40,
@@ -250,7 +276,7 @@
         {
           "caseId": "two-claims-milk-drink",
           "ok": true,
-          "latencyMs": 13838,
+          "latencyMs": 13827,
           "output": {
             "product": "milk drink",
             "amount": 30,
@@ -573,106 +599,208 @@
       "id": "gemini-3.8-flash",
       "label": "Gemini 3.8 Flash",
       "modelId": "gemini-3.8-flash",
-      "ranAt": "2026-11-14T00:26:42.561Z",
+      "ranAt": "2026-11-14T01:02:23.819Z",
       "status": "ran",
       "reason": null,
       "summary": {
         "attempts": 12,
-        "valid": 1,
-        "validRate": 0.08333333333333333,
+        "valid": 12,
+        "validRate": 1,
         "fieldAccuracy": {
-          "product": 0.08333333333333333,
-          "amount": 0.08333333333333333,
-          "amountUnit": 0.08333333333333333,
-          "deliveryDate": 0.08333333333333333,
-          "requiredClaims": 0.08333333333333333
+          "product": 1,
+          "amount": 1,
+          "amountUnit": 1,
+          "deliveryDate": 1,
+          "requiredClaims": 1
         },
-        "exactRate": 0.08333333333333333,
-        "latencyP50Ms": 27154,
-        "latencyP95Ms": 27154,
+        "exactRate": 1,
+        "latencyP50Ms": 3443,
+        "latencyP95Ms": 5798,
         "errors": {
-          "timeout": 10,
+          "timeout": 0,
           "invalid_output": 0,
-          "error": 1
+          "error": 0
         }
       },
       "runs": [
         {
           "caseId": "hotel-milk-1000",
-          "ok": false,
-          "latencyMs": 60016,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 2440,
+          "output": {
+            "product": "milk",
+            "amount": 1000,
+            "amountUnit": "L",
+            "deliveryDate": "2026-11-16",
+            "requiredClaims": [
+              "FREE_FROM_LACTOSE"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "hotel-milk-100",
-          "ok": false,
-          "latencyMs": 60068,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 3893,
+          "output": {
+            "product": "milk",
+            "amount": 100,
+            "amountUnit": "L",
+            "deliveryDate": "2026-11-16",
+            "requiredClaims": [
+              "FREE_FROM_LACTOSE"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "school-granola-20",
-          "ok": false,
-          "latencyMs": 60009,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 2605,
+          "output": {
+            "product": "granola",
+            "amount": 20,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-17",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "school-granola-100",
-          "ok": false,
-          "latencyMs": 60006,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 2807,
+          "output": {
+            "product": "granola",
+            "amount": 100,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-17",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "fi-milk-500",
-          "ok": false,
-          "latencyMs": 60008,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 4455,
+          "output": {
+            "product": "milk",
+            "amount": 500,
+            "amountUnit": "L",
+            "deliveryDate": "2026-11-19",
+            "requiredClaims": [
+              "FREE_FROM_LACTOSE"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "fi-oats-25",
-          "ok": false,
-          "latencyMs": 60009,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 3052,
+          "output": {
+            "product": "rolled oats",
+            "amount": 25,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-18",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "fi-potato-tonnes",
-          "ok": false,
-          "latencyMs": 60005,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 5798,
+          "output": {
+            "product": "potato",
+            "amount": 2000,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-16",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "messy-oat-milk-cases",
-          "ok": false,
-          "latencyMs": 60007,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 5669,
+          "output": {
+            "product": "oat milk",
+            "amount": 10,
+            "amountUnit": "unit",
+            "deliveryDate": "2026-11-19",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "messy-cream-dl",
           "ok": true,
-          "latencyMs": 27154,
+          "latencyMs": 3443,
           "output": {
             "product": "cream",
             "amount": 25,
@@ -694,30 +822,72 @@
         },
         {
           "caseId": "messy-butter-grams",
-          "ok": false,
-          "latencyMs": 60010,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 2946,
+          "output": {
+            "product": "butter",
+            "amount": 0.5,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-18",
+            "requiredClaims": []
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "two-claims-yoghurt",
-          "ok": false,
-          "latencyMs": 60035,
-          "output": null,
-          "error": "Request timed out.",
-          "errorKind": "timeout",
-          "correct": null
+          "ok": true,
+          "latencyMs": 5361,
+          "output": {
+            "product": "yoghurt",
+            "amount": 40,
+            "amountUnit": "KG",
+            "deliveryDate": "2026-11-17",
+            "requiredClaims": [
+              "VEGAN",
+              "FREE_FROM_GLUTEN"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         },
         {
           "caseId": "two-claims-milk-drink",
-          "ok": false,
-          "latencyMs": 1300,
-          "output": null,
-          "error": "503 [{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}]",
-          "errorKind": "error",
-          "correct": null
+          "ok": true,
+          "latencyMs": 4214,
+          "output": {
+            "product": "milk drink",
+            "amount": 30,
+            "amountUnit": "L",
+            "deliveryDate": "2026-11-16",
+            "requiredClaims": [
+              "LOW_FAT",
+              "HIGH_PROTEIN"
+            ]
+          },
+          "error": null,
+          "errorKind": null,
+          "correct": {
+            "product": true,
+            "amount": true,
+            "amountUnit": true,
+            "deliveryDate": true,
+            "requiredClaims": true
+          }
         }
       ]
     },
@@ -725,7 +895,7 @@
       "id": "gemini-3.1-flash-lite",
       "label": "Gemini 3.1 Flash-Lite",
       "modelId": "gemini-3.1-flash-lite",
-      "ranAt": "2026-11-14T00:39:56.004Z",
+      "ranAt": "2026-11-14T01:02:14.975Z",
       "status": "ran",
       "reason": null,
       "summary": {
@@ -740,8 +910,8 @@
           "requiredClaims": 0.25
         },
         "exactRate": 0.25,
-        "latencyP50Ms": 733,
-        "latencyP95Ms": 748,
+        "latencyP50Ms": 635,
+        "latencyP95Ms": 705,
         "errors": {
           "timeout": 0,
           "invalid_output": 9,
@@ -752,7 +922,7 @@
         {
           "caseId": "hotel-milk-1000",
           "ok": false,
-          "latencyMs": 985,
+          "latencyMs": 766,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -761,7 +931,7 @@
         {
           "caseId": "hotel-milk-100",
           "ok": true,
-          "latencyMs": 748,
+          "latencyMs": 705,
           "output": {
             "product": "milk",
             "amount": 100,
@@ -793,7 +963,7 @@
         {
           "caseId": "school-granola-100",
           "ok": true,
-          "latencyMs": 642,
+          "latencyMs": 600,
           "output": {
             "product": "granola",
             "amount": 100,
@@ -814,7 +984,7 @@
         {
           "caseId": "fi-milk-500",
           "ok": false,
-          "latencyMs": 1017,
+          "latencyMs": 763,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -823,7 +993,7 @@
         {
           "caseId": "fi-oats-25",
           "ok": false,
-          "latencyMs": 595,
+          "latencyMs": 648,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -832,7 +1002,7 @@
         {
           "caseId": "fi-potato-tonnes",
           "ok": false,
-          "latencyMs": 632,
+          "latencyMs": 686,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -841,7 +1011,7 @@
         {
           "caseId": "messy-oat-milk-cases",
           "ok": false,
-          "latencyMs": 726,
+          "latencyMs": 714,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -850,7 +1020,7 @@
         {
           "caseId": "messy-cream-dl",
           "ok": false,
-          "latencyMs": 640,
+          "latencyMs": 680,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -859,7 +1029,7 @@
         {
           "caseId": "messy-butter-grams",
           "ok": true,
-          "latencyMs": 733,
+          "latencyMs": 635,
           "output": {
             "product": "butter",
             "amount": 0.5,
@@ -880,7 +1050,7 @@
         {
           "caseId": "two-claims-yoghurt",
           "ok": false,
-          "latencyMs": 631,
+          "latencyMs": 706,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -889,7 +1059,7 @@
         {
           "caseId": "two-claims-milk-drink",
           "ok": false,
-          "latencyMs": 786,
+          "latencyMs": 644,
           "output": null,
           "error": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received array\"\n  }\n]",
           "errorKind": "invalid_output",
@@ -1209,7 +1379,10 @@
           1000,
           "L"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          1000,
+          "L"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           1000,
@@ -1235,7 +1408,10 @@
           100,
           "L"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          100,
+          "L"
+        ],
         "gemini-3.1-flash-lite": [
           100,
           "L"
@@ -1256,12 +1432,18 @@
       "caseId": "school-granola-20",
       "text": "I need 20 kg of granola by Tuesday.",
       "answers": {
-        "gemma-4": null,
+        "gemma-4": [
+          20,
+          "KG"
+        ],
         "qwen-2.5-72b": [
           20,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          20,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           20,
@@ -1287,7 +1469,10 @@
           100,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          100,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": [
           100,
           "KG"
@@ -1316,7 +1501,10 @@
           500,
           "L"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          500,
+          "L"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           500,
@@ -1342,7 +1530,10 @@
           25,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          25,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           25,
@@ -1368,7 +1559,10 @@
           2,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          2000,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           2000,
@@ -1396,7 +1590,10 @@
           10,
           "unit"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          10,
+          "unit"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           10,
@@ -1414,7 +1611,10 @@
       "caseId": "messy-cream-dl",
       "text": "250 dl cream for friday, lactose free pls",
       "answers": {
-        "gemma-4": null,
+        "gemma-4": [
+          25,
+          "L"
+        ],
         "qwen-2.5-72b": [
           25,
           "L"
@@ -1448,7 +1648,10 @@
           0.5,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          0.5,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": [
           0.5,
           "KG"
@@ -1477,7 +1680,10 @@
           40,
           "KG"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          40,
+          "KG"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           40,
@@ -1503,7 +1709,10 @@
           30,
           "L"
         ],
-        "gemini-3.8-flash": null,
+        "gemini-3.8-flash": [
+          30,
+          "L"
+        ],
         "gemini-3.1-flash-lite": null,
         "nemotron": [
           30,

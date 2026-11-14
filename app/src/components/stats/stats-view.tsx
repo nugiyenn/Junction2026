@@ -9,15 +9,14 @@ import type { BuyerStats, InfraStatus, Mandate, OrderOutcome } from '@/types';
 
 const OUTCOMES: { key: OrderOutcome; label: string; bar: string }[] = [
   { key: 'auto_approved', label: 'Auto-approved', bar: 'bg-primary' },
-  { key: 'approved', label: 'Approved by a person', bar: 'bg-primary/55' },
-  { key: 'declined', label: 'Declined by a person', bar: 'bg-warn' },
-  { key: 'rejected', label: 'Rejected by the mandate', bar: 'bg-destructive' },
-  { key: 'pending', label: 'Waiting for a person', bar: 'bg-muted-foreground/40' },
+  { key: 'approved', label: 'Approved', bar: 'bg-primary/55' },
+  { key: 'declined', label: 'Declined', bar: 'bg-warn' },
+  { key: 'rejected', label: 'Rejected', bar: 'bg-destructive' },
+  { key: 'pending', label: 'Waiting', bar: 'bg-muted-foreground/40' },
 ];
 
 const duration = (s: number | null) => (s === null ? '–' : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
 
-/** How a buyer's behaviour changes over time: spend, outcomes, decision speed, carbon and reliability. */
 export function StatsView() {
   const [mandates, setMandates] = useState<Mandate[] | null>(null);
   const [mandateId, setMandateId] = useState<string | null>(null);
@@ -80,21 +79,21 @@ function Stats({ s }: { s: BuyerStats }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {s.totals.syntheticOrders > 0 && <Pill tone="warn">Demo history: {s.totals.syntheticOrders} synthetic orders</Pill>}
-        <Pill tone="ok">Real orders: {s.totals.realOrders}</Pill>
-        <Pill>Answered by {s.source === 'clickhouse' ? 'ClickHouse' : 'Postgres'}</Pill>
+        {s.totals.syntheticOrders > 0 && <Pill tone="warn">Demo history · {s.totals.syntheticOrders}</Pill>}
+        <Pill tone="ok">Real orders · {s.totals.realOrders}</Pill>
+        <Pill>{s.source === 'clickhouse' ? 'ClickHouse' : 'Postgres'}</Pill>
       </div>
 
       {s.totals.orders === 0 ? (
-        <p className="text-muted-foreground">No orders for this buyer yet.</p>
+        <p className="text-muted-foreground">No orders yet.</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Tile label="Confirmed spend" value={eur(s.totals.confirmedSpend)} note={`${confirmedCount} orders, ex VAT`} />
-            <Tile label="Order size, median" value={eur(s.orderSize?.median)} note={`90th percentile ${eur(s.orderSize?.p90)}`} />
-            <Tile label="Time to human decision" value={duration(s.avgDecisionSeconds)} note="average" />
-            <Tile label="Carbon" value={s.avgCo2PerKg === null ? '–' : `${s.avgCo2PerKg.toFixed(2)}`} note="kg CO2-eq per kg, average" />
-            <Tile label="Delivery reliability" value={s.avgReliability === null ? '–' : `${(s.avgReliability * 100).toFixed(1)} %`} note="average of ordered lines" />
+            <Tile label="Confirmed spend" value={eur(s.totals.confirmedSpend)} note={`${confirmedCount} orders · ex VAT`} />
+            <Tile label="Median order" value={eur(s.orderSize?.median)} note={`p90 ${eur(s.orderSize?.p90)}`} />
+            <Tile label="Decision time" value={duration(s.avgDecisionSeconds)} note="average, human" />
+            <Tile label="Carbon" value={s.avgCo2PerKg === null ? '–' : `${s.avgCo2PerKg.toFixed(2)}`} note="kg CO₂-eq/kg · avg" />
+            <Tile label="Reliability" value={s.avgReliability === null ? '–' : `${(s.avgReliability * 100).toFixed(1)} %`} note="avg per line" />
             <Tile label="Orders" value={String(s.totals.orders)} note="all outcomes" />
           </div>
 
@@ -130,7 +129,7 @@ function Stats({ s }: { s: BuyerStats }) {
             </Panel>
 
             <Panel>
-              <h2 className="text-base font-semibold">Top products by confirmed spend</h2>
+              <h2 className="text-base font-semibold">Top products</h2>
               <ol className="mt-3 flex flex-col gap-2 text-sm">
                 {s.topProducts.map((p) => (
                   <li key={p.productId} className="flex items-baseline gap-2">
@@ -147,28 +146,36 @@ function Stats({ s }: { s: BuyerStats }) {
         </>
       )}
 
-      <Panel>
-        <h2 className="text-base font-semibold">Infrastructure</h2>
-        <ul className="mt-3 flex flex-col gap-2 text-sm">
+      <details className="rounded-xl border bg-card">
+        <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-2 px-5 py-3 text-sm font-medium">
+          Infrastructure
           {s.infra.map((i) => (
-            <li key={i.name} className="flex flex-wrap items-start gap-2">
-              <Pill tone={infraTone(i)} className="shrink-0 md:w-64 md:justify-center">
-                {i.name === 'kafka' ? 'Aiven Kafka' : 'Aiven ClickHouse'}: {infraLabel(i)}
-              </Pill>
-              <span className="min-w-0 flex-1 break-words text-muted-foreground">{i.detail}</span>
-            </li>
+            <Pill key={i.name} tone={infraTone(i)}>
+              {i.name === 'kafka' ? 'Kafka' : 'ClickHouse'} · {infraLabel(i)}
+            </Pill>
           ))}
-        </ul>
-        {s.stream && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Decision events in ClickHouse for this buyer:{' '}
-            {Object.entries(s.stream.byAction)
-              .map(([a, n]) => `${a.replaceAll('_', ' ')} ${n}`)
-              .join(', ') || 'none yet'}
-            .
-          </p>
-        )}
-      </Panel>
+        </summary>
+        <div className="border-t px-5 py-4">
+          <ul className="flex flex-col gap-2 text-sm">
+            {s.infra.map((i) => (
+              <li key={i.name} className="flex flex-wrap items-start gap-2">
+                <Pill tone={infraTone(i)} className="shrink-0 md:w-64 md:justify-center">
+                  {i.name === 'kafka' ? 'Aiven Kafka' : 'Aiven ClickHouse'} · {infraLabel(i)}
+                </Pill>
+                <span className="min-w-0 flex-1 break-words text-muted-foreground">{i.detail}</span>
+              </li>
+            ))}
+          </ul>
+          {s.stream && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              ClickHouse events:{' '}
+              {Object.entries(s.stream.byAction)
+                .map(([a, n]) => `${a.replaceAll('_', ' ')} ${n}`)
+                .join(', ') || 'none'}
+            </p>
+          )}
+        </div>
+      </details>
     </>
   );
 }
@@ -180,7 +187,7 @@ function Tile({ label, value, note }: { label: string; value: string; note: stri
   return (
     <Panel className="flex flex-col gap-1 p-4">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="font-heading text-xl font-semibold">{value}</span>
+      <span className="text-xl font-semibold">{value}</span>
       <span className="text-xs text-muted-foreground">{note}</span>
     </Panel>
   );

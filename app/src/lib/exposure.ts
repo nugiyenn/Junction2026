@@ -1,5 +1,13 @@
 import type { ExposedOrder, ExposedQuote, ExposedQuoteLine, Order, Quote, QuoteLine, StockView } from '../types/index.ts';
 
+/** A catalog product as an agent may see it: the supplier and Valio's internal category stay inside. */
+export function exposeProduct<T extends { vendorName: string | null; category: string | null }>(product: T): Omit<T, 'vendorName' | 'category'> {
+  const { vendorName: _vendor, category: _category, ...visible } = product;
+  void _vendor;
+  void _category;
+  return visible;
+}
+
 // Pure. The exposure policy: what an external agent may see of Valio's data. The agent gets its own fixed price,
 // whether the request can be filled, and how sure Valio is of the stock. It never gets the stock quantity, the list
 // price or the discount, the supplier, or Valio's internal category.
@@ -23,7 +31,7 @@ export function stockView(line: QuoteLine): StockView {
 }
 
 /** "Only 51 ST available." names the quantity, so it is replaced by a sentence that does not. */
-const sanitizeIssue = (issue: string) => (/^Only [\d.]+ .* available\.$/.test(issue) ? 'Not enough stock for the full quantity.' : issue);
+export const sanitizeIssue = (issue: string) => (/^Only [\d.]+ .* available\.$/.test(issue) ? 'Not enough stock for the full quantity.' : issue);
 
 export function exposeLine(line: QuoteLine): ExposedQuoteLine {
   const { availableAmount: _stock, internal: _internal, issues, ...visible } = line;

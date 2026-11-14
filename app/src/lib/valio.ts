@@ -1,8 +1,12 @@
 import 'server-only';
 import { cached, valioKey } from './cache.ts';
+import { HttpError } from './http.ts';
 import type { ValioAvailabilityResponse, ValioPriceResponse } from '../types/index.ts';
 
 const BASE_URL = 'https://junction26.valioaimo.fi';
+
+/** Valio's mock answers in about a second. A slow answer must not hold a whole buying request hostage. */
+const TIMEOUT_MS = 20_000;
 
 /** The mock ignores the customer number, but the field is required. */
 const DEFAULT_CUSTOMER = '123';
@@ -21,15 +25,24 @@ async function valioFetch<T>(path: string, body?: unknown): Promise<T> {
   const apiKey = process.env.VALIO_API_KEY;
   if (!apiKey) throw new Error('Missing VALIO_API_KEY: cannot call valio');
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { 'X-API-Key': apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: { 'X-API-Key': apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err) {
+    const timedOut = (err as Error).name === 'TimeoutError' || (err as Error).name === 'AbortError';
+    throw new HttpError(504, timedOut ? `Valio's price and availability API did not answer within ${TIMEOUT_MS / 1000} s. Try again.` : "Valio's price and availability API could not be reached. Try again.");
+  }
 
   if (!response.ok) {
-    throw new Error(`Valio error (${response.status}) on ${path}: ${(await response.text()).slice(0, 500)}`);
+    const detail = (await response.text()).slice(0, 300);
+    // 429: Valio rate-limits agents. Say so plainly instead of a generic server error.
+    throw new HttpError(response.status === 429 ? 429 : 502, `Valio error (${response.status}) on ${path}: ${detail}`, response.status === 429 ? { 'Retry-After': response.headers.get('retry-after') ?? '5' } : {});
   }
   return response.json() as Promise<T>;
 }

@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { errorResponse } from '@/lib/http';
+import { enforceRateLimit } from '@/lib/ratelimit';
 import { getVerifications, verifyProduct } from '@/lib/verify';
 
 /** Model calls and live web reads take up to a couple of minutes: ask the host for the longest limit it allows. */
@@ -23,6 +24,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<'/api/product
 export async function POST(request: NextRequest, ctx: RouteContext<'/api/products/[id]/verify'>) {
   try {
     const { id } = await ctx.params;
+    await enforceRateLimit('verify', 'all');
     const force = request.nextUrl.searchParams.get('force') === 'true';
     return Response.json({ verification: await verifyProduct(id, { force }) });
   } catch (err) {

@@ -51,6 +51,21 @@ export function weekdayDate(text: string, todayIso: string): string | null {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * What differs between two readings of the same request, on the fields code relies on: the amount it multiplies, the unit
+ * and the delivery date. Empty when they agree. The product text and the diet claims may be worded differently, so they
+ * are not compared.
+ */
+export function compareInterpretations(first: PurchaseRequest, second: PurchaseRequest): string[] {
+  const differences: string[] = [];
+  if (Math.abs(first.amount - second.amount) > 1e-9 * Math.max(first.amount, second.amount)) {
+    differences.push(`amount: ${first.amount} vs ${second.amount}`);
+  }
+  if (first.amountUnit !== second.amountUnit) differences.push(`unit: ${first.amountUnit} vs ${second.amountUnit}`);
+  if (first.deliveryDate !== second.deliveryDate) differences.push(`delivery date: ${first.deliveryDate} vs ${second.deliveryDate}`);
+  return differences;
+}
+
 export function interpretInstructions(today: { date: string; weekday: string }): string {
   return `You turn a food-service buyer's purchase request into JSON with exactly these fields:
 - "product": short English description of the product to search for, without diet words (e.g. "milk", "butter").

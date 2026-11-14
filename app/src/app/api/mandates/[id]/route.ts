@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requireApprover } from '@/lib/auth';
 import { errorResponse } from '@/lib/http';
 import { getMandate, updateMandate } from '@/lib/purchasing';
 
@@ -25,10 +26,11 @@ export async function GET(_request: Request, ctx: RouteContext<'/api/mandates/[i
  * PATCH /api/mandates/:id  { changedBy, autoApproveLimitEur?, maxOrderEur?, blockedAllergens?,
  *                            minDeliveryReliability? (0-1 or null), requireConfirmedStock?,
  *                            maxCo2PerKg? (kg CO2-eq per kg, or null), preferredOffer? }
- * The buyer edits what the agent may do. Every change is written to the audit trail.
+ * The buyer edits what the agent may do. Every change is written to the audit trail. Needs the approver key when APPROVER_KEY is set.
  */
 export async function PATCH(request: Request, ctx: RouteContext<'/api/mandates/[id]'>) {
   try {
+    requireApprover(request);
     const { changedBy, ...changes } = Body.parse(await request.json());
     return Response.json({ mandate: await updateMandate((await ctx.params).id, changes, changedBy) });
   } catch (err) {

@@ -25,7 +25,7 @@ function Row({ label, value, withheld }: { label: string; value?: React.ReactNod
   );
 }
 
-const CONFIDENCE = { confirmed: 'confirmed stock', supplier_unconfirmed: 'supplier ships it, quantity unknown', unknown: 'unknown' };
+const CONFIDENCE = { confirmed: 'Confirmed stock', supplier_unconfirmed: 'Supplier, qty unknown', unknown: 'Unknown' };
 
 /** Valio's data next to the agent's view of it: the exposure policy made visible. */
 export function ExposureView({ quoteId }: { quoteId: string }) {
@@ -44,12 +44,10 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
 
   return (
     <Page title="What agents see">
-      <p className="-mt-3 text-muted-foreground">Valio keeps the commercial detail. The agent gets what it needs to decide.</p>
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Could not load the quote</AlertTitle>
-          <AlertDescription className="break-words">{error} Run a request on the Buyer agent page first, then follow the link under the signed quote.</AlertDescription>
+          <AlertDescription className="break-words">{error} Run a request first.</AlertDescription>
         </Alert>
       )}
 
@@ -68,15 +66,15 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
                     <Row label="Buyer's price" value={`${eur(l.unitPrice)} per ${l.salesUnit}`} />
                     <Row label="List price" value={eur(l.internal?.listPrice)} />
                     <Row label="Discount" value={l.internal?.discountPct == null ? '–' : `${l.internal.discountPct}%`} />
-                    <Row label="Price basis" value={l.internal?.netPriceFound ? 'customer-specific net price' : 'catalog price'} />
+                    <Row label="Price basis" value={l.internal?.netPriceFound ? 'Customer net price' : 'Catalog price'} />
                     <Row
                       label="Stock"
                       value={
                         l.internal?.availableAmount != null
                           ? `${l.internal.availableAmount} ${l.salesUnit}`
                           : l.logisticModel === 'Terminal'
-                            ? 'unknown (supplier ships it)'
-                            : 'in stock, no limit reported'
+                            ? 'Unknown (supplier)'
+                            : 'No limit reported'
                       }
                     />
                     <Row label="Supplier" value={l.internal?.vendorName ?? '–'} />
@@ -118,28 +116,35 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
 
           <Panel className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-[17px] font-semibold">Signed by Valio</h2>
+              <h2 className="text-[17px] font-semibold">Signature</h2>
               <Pill tone={views.signatureValid ? 'ok' : 'bad'}>{views.signatureValid ? 'Signature valid' : 'Signature invalid'}</Pill>
             </div>
             {views.agent.signature ? (
               <>
-                <p className="text-sm">
-                  {views.agent.signature.alg} · key <code className="font-mono text-xs">{views.agent.signature.keyId}</code> · valid until{' '}
-                  {new Date(views.agent.expiresAt).toLocaleTimeString('en-GB')}
-                </p>
-                <p className="break-all font-mono text-xs text-muted-foreground">{views.agent.signature.value}</p>
-                <p className="text-[13px] text-muted-foreground">
-                  The signature covers price, quantities, delivery date and validity, and nothing private. Public key:{' '}
-                  <a className="text-primary underline" href="/.well-known/jwks.json" target="_blank" rel="noreferrer">
-                    /.well-known/jwks.json
-                  </a>
-                </p>
+                <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                  <dt className="text-muted-foreground">Algorithm</dt>
+                  <dd className="text-right font-semibold">{views.agent.signature.alg}</dd>
+                  <dt className="text-muted-foreground">Key</dt>
+                  <dd className="text-right">
+                    <code className="font-mono text-xs">{views.agent.signature.keyId}</code>
+                  </dd>
+                  <dt className="text-muted-foreground">Valid until</dt>
+                  <dd className="text-right">{new Date(views.agent.expiresAt).toLocaleTimeString('en-GB')}</dd>
+                  <dt className="text-muted-foreground">Public key</dt>
+                  <dd className="text-right">
+                    <a className="text-primary underline" href="/.well-known/jwks.json" target="_blank" rel="noreferrer">
+                      jwks.json
+                    </a>
+                  </dd>
+                </dl>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">This quote was issued before signing existed.</p>
+              <p className="text-sm text-muted-foreground">Unsigned (issued before signing)</p>
             )}
             <details>
-              <summary className="min-h-9 cursor-pointer py-1.5 text-sm text-primary">The agent&apos;s JSON</summary>
+              <summary className="min-h-9 cursor-pointer py-1.5 text-sm text-primary">Signature value and agent JSON</summary>
+              <p className="mt-2 text-xs text-muted-foreground">Covers price, quantities, delivery date and validity.</p>
+              {views.agent.signature && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{views.agent.signature.value}</p>}
               <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify(views.agent, null, 2)}</pre>
             </details>
           </Panel>
@@ -148,8 +153,8 @@ export function ExposureView({ quoteId }: { quoteId: string }) {
 
       <Panel className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-[1_1_320px] flex-col gap-1">
-          <h2 className="text-[17px] font-semibold">Tools an agent can call</h2>
-          <p className="text-sm text-muted-foreground">Over MCP. Approving an order and editing a mandate are not among them.</p>
+          <h2 className="text-[17px] font-semibold">MCP tools</h2>
+          <p className="text-xs text-muted-foreground">No approve, no mandate edit</p>
         </div>
         <div className="flex flex-[1_1_320px] flex-wrap gap-2">
           {TOOLS.map((t) => (

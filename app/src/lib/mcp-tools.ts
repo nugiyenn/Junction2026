@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { searchProducts } from '@/lib/catalog';
-import { exposeOrder, exposeQuote } from '@/lib/exposure';
+import { exposeOrder, exposeProduct, exposeQuote } from '@/lib/exposure';
 import { getMandate, createQuote, getOrder, getQuote, placeOrder } from '@/lib/purchasing';
 import { enforceRateLimit } from '@/lib/ratelimit';
 import { planRequest } from '@/lib/request';
@@ -46,7 +46,7 @@ export const MCP_TOOLS: McpTool[] = [
     readOnly: true,
     run: async ({ query, limit, ...filters }) => {
       const { products, semantic } = await searchProducts(query, filters, limit);
-      return { semantic, products };
+      return { semantic, products: products.map(exposeProduct) };
     },
   }),
   tool({
@@ -95,7 +95,10 @@ export const MCP_TOOLS: McpTool[] = [
     description:
       "Check a product's allergen and label claims against the live web (Oxylabs). Every statement carries a quote from the page and its source URL. Takes up to two minutes; a result is reused for 24 hours.",
     inputSchema: z.object({ productId: z.string() }),
-    run: async ({ productId }) => verifyProduct(productId),
+    run: async ({ productId }) => {
+      await enforceRateLimit('verify', 'all');
+      return verifyProduct(productId);
+    },
   }),
   tool({
     name: 'get_mandate',

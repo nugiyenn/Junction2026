@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { weekdayDate } from '../src/lib/interpret.ts';
+import { compareInterpretations, weekdayDate } from '../src/lib/interpret.ts';
+import type { PurchaseRequest } from '../src/types/index.ts';
 
 // 2026-11-14 is a Saturday.
 const SATURDAY = '2026-11-14';
@@ -30,5 +31,22 @@ describe('weekdayDate', () => {
   it('works across a month and year boundary', () => {
     assert.equal(weekdayDate('by Thursday', '2026-12-30'), '2026-12-31');
     assert.equal(weekdayDate('by Friday', '2026-12-30'), '2027-01-01');
+  });
+});
+
+describe('compareInterpretations', () => {
+  const base: PurchaseRequest = { product: 'milk', amount: 100, amountUnit: 'L', deliveryDate: '2026-11-16', requiredClaims: ['FREE_FROM_LACTOSE'] };
+  it('finds no difference between identical readings, or when only the wording and claims differ', () => {
+    assert.deepEqual(compareInterpretations(base, { ...base }), []);
+    assert.deepEqual(compareInterpretations(base, { ...base, product: 'lactose free milk drink', requiredClaims: ['FREE_FROM_LACTOSE', 'VEGAN'] }), []);
+  });
+  it('reports a different amount, unit or delivery date', () => {
+    assert.deepEqual(compareInterpretations(base, { ...base, amount: 1000 }), ['amount: 100 vs 1000']);
+    assert.deepEqual(compareInterpretations({ ...base, amount: 2, amountUnit: 'KG' }, { ...base, amount: 2000, amountUnit: 'KG' }), ['amount: 2 vs 2000']);
+    assert.deepEqual(compareInterpretations(base, { ...base, amountUnit: 'KG' }), ['unit: L vs KG']);
+    assert.deepEqual(compareInterpretations(base, { ...base, deliveryDate: '2026-11-17' }), ['delivery date: 2026-11-16 vs 2026-11-17']);
+  });
+  it('lists every difference', () => {
+    assert.equal(compareInterpretations(base, { ...base, amount: 10, deliveryDate: '2026-11-18' }).length, 2);
   });
 });

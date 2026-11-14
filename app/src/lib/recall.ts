@@ -25,6 +25,7 @@ interface RecallRow {
   query: string;
   search_request_id: string | null;
   summary: string;
+  model: string | null;
 }
 
 const toRecallCheck = (r: RecallRow): RecallCheck => ({
@@ -36,6 +37,7 @@ const toRecallCheck = (r: RecallRow): RecallCheck => ({
   query: r.query,
   searchRequestId: r.search_request_id,
   summary: r.summary,
+  model: r.model,
 });
 
 /** Stored checks only, no live calls: used when an order is judged. */
@@ -54,7 +56,7 @@ A recall of another product, even from the same maker, or of another pack size o
 - "evidence": a passage COPIED EXACTLY from the page, 12 to 300 characters, that names the recalled product or brand. Never paraphrase it.`,
     `Page text:\n${page.slice(0, PAGE_CHARS)}`,
     Extraction,
-    { gemmaDeadlineMs: 60_000 }
+    { gemmaDeadlineMs: 60_000, skipScope: 'pages' }
   );
   return { recalls: output.recalls, model };
 }
@@ -82,12 +84,13 @@ export async function checkRecalls(product: Product, options: { force?: boolean 
   }
 
   const { rows } = await getPool().query<RecallRow>(
-    `INSERT INTO recall_checks (product_id, checked_at, status, matches, sources, query, search_request_id, summary)
-     VALUES ($1, now(), $2, $3, $4, $5, $6, $7)
+    `INSERT INTO recall_checks (product_id, checked_at, status, matches, sources, query, search_request_id, summary, model)
+     VALUES ($1, now(), $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (product_id) DO UPDATE SET checked_at = now(), status = EXCLUDED.status, matches = EXCLUDED.matches,
-       sources = EXCLUDED.sources, query = EXCLUDED.query, search_request_id = EXCLUDED.search_request_id, summary = EXCLUDED.summary
+       sources = EXCLUDED.sources, query = EXCLUDED.query, search_request_id = EXCLUDED.search_request_id, summary = EXCLUDED.summary,
+       model = EXCLUDED.model
      RETURNING *`,
-    [product.id, outcome.status, JSON.stringify(outcome.matches), JSON.stringify(outcome.sources), outcome.query, outcome.searchRequestId, outcome.summary]
+    [product.id, outcome.status, JSON.stringify(outcome.matches), JSON.stringify(outcome.sources), outcome.query, outcome.searchRequestId, outcome.summary, [...new Set(outcome.models)].join(', ') || null]
   );
 
   await logAudit({

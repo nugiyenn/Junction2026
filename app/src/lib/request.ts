@@ -2,17 +2,18 @@ import 'server-only';
 import { z } from 'zod';
 import { logAudit } from '@/lib/audit';
 import { getProductsByIds, searchProducts } from '@/lib/catalog';
-import { exposeQuote } from '@/lib/exposure';
+import { exposeQuote, sanitizeIssue } from '@/lib/exposure';
+import { withTimeout } from '@/lib/deadline';
 import { HttpError } from '@/lib/http';
-import { helsinkiToday, interpretInstructions, PurchaseRequestSchema, weekdayDate } from '@/lib/interpret';
-import { runOpenModelStructured } from '@/lib/llm';
+import { compareInterpretations, helsinkiToday, interpretInstructions, PurchaseRequestSchema, weekdayDate } from '@/lib/interpret';
+import { runExtractionModelStructured, runNamedModelStructured, runOpenModelStructured } from '@/lib/llm';
 import { runLiveChecks } from '@/lib/live-checks';
 import { applyPreference, buildOffers } from '@/lib/offers';
 import { buildQuoteLine, createQuote, getMandate, previewPolicy } from '@/lib/purchasing';
 import { checkRecalls } from '@/lib/recall';
 import { getAvailability, getPrices } from '@/lib/valio';
 import { verifyProduct } from '@/lib/verify';
-import type { Candidate, LiveChecks, Mandate, Offer, Product, ProductSearchResult, PurchaseRequest, RequestResult } from '@/types';
+import type { Candidate, InterpretationCheck, LiveChecks, Mandate, Offer, Product, ProductSearchResult, PurchaseRequest, RequestResult } from '@/types';
 
 /** Valio asks agents to price only a narrowed-down shortlist, never the catalog. */
 const SHORTLIST_SIZE = 5;
@@ -23,23 +24,62 @@ const LIVE_CHECK_CONCURRENCY = 2;
 const LIVE_CHECK_BUDGET_MS = 90_000;
 
 /** The language model only extracts the need. Everything after this is deterministic code. */
-export async function interpretRequest(text: string): Promise<{ request: PurchaseRequest; model: string }> {
+/** The second reader. In the evaluation it answered all 12 requests correctly in about 3.4 s (slowest 5.8 s). */
+const SECOND_READER = { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' } as const;
+const SECOND_READER_TIMEOUT_MS = 15_000;
+
+/** Time budgets per step, so the whole request stays inside the route's 300 s even when a provider is slow or down. */
+const READ_BUDGET_MS = 75_000;
+const PICK_BUDGET_MS = 60_000;
+
+/**
+ * Two models read the request independently, side by side: the open-weights chain (Gemma first) and Gemini. Code compares
+ * the amount, unit and delivery date, the fields it multiplies, and reports any disagreement. The first model's reading
+ * is the one used. If Gemini does not answer, the request goes on and says so.
+ */
+export async function interpretRequest(text: string): Promise<{ request: PurchaseRequest; model: string; check: InterpretationCheck }> {
   const today = helsinkiToday();
-  let { output: request, model } = await runOpenModelStructured(
-    interpretInstructions(today),
-    text,
-    PurchaseRequestSchema
-  );
-  // A weekday in the text is arithmetic, so code settles it and says so in the model label.
+  const instructions = interpretInstructions(today);
+  // A weekday in the text is arithmetic, so code settles it for both readings.
   const byCode = weekdayDate(text, today.date);
+  const settle = (r: PurchaseRequest): PurchaseRequest => (byCode !== null && byCode !== r.deliveryDate ? { ...r, deliveryDate: byCode } : r);
+
+  const [first, second] = await Promise.allSettled([
+    withTimeout(
+      runOpenModelStructured(instructions, text, PurchaseRequestSchema),
+      READ_BUDGET_MS,
+      () => new HttpError(504, 'The models did not read the request in time. Try again.')
+    ),
+    runNamedModelStructured(SECOND_READER.id, instructions, text, PurchaseRequestSchema, { timeoutMs: SECOND_READER_TIMEOUT_MS }),
+  ]);
+  if (first.status === 'rejected') throw first.reason;
+
+  let request: PurchaseRequest = first.value.output;
+  let model = first.value.model;
   if (byCode !== null && byCode !== request.deliveryDate) {
-    request = { ...request, deliveryDate: byCode };
+    request = settle(request);
     model = `${model}; delivery date set from the weekday by code`;
   }
   if (request.deliveryDate < today.date) {
     throw new HttpError(422, `Interpreted delivery date ${request.deliveryDate} is in the past.`);
   }
-  return { request, model };
+
+  const reading = (r: PurchaseRequest) => `${r.amount} ${r.amountUnit} by ${r.deliveryDate}`;
+  let check: InterpretationCheck;
+  if (second.status === 'fulfilled') {
+    const other = settle(second.value);
+    const differences = compareInterpretations(request, other);
+    check = {
+      status: differences.length === 0 ? 'agree' : 'disagree',
+      secondModel: SECOND_READER.label,
+      differences,
+      detail: differences.length === 0 ? reading(other) : `${SECOND_READER.label} read ${reading(other)}; the first model read ${reading(request)}.`,
+    };
+  } else {
+    const reason = second.reason instanceof Error ? second.reason.message : String(second.reason);
+    check = { status: 'unavailable', secondModel: SECOND_READER.label, differences: [], detail: reason.slice(0, 160) };
+  }
+  return { request, model, check };
 }
 
 /** How many search results Gemma sees when picking the products that match the need. */
@@ -54,10 +94,13 @@ async function pickMatches(
   products: ProductSearchResult[]
 ): Promise<{ matches: ProductSearchResult[]; model: string }> {
   const ids = new Set(products.map((p) => p.id));
+  // Picking from 40 catalog lines is a long prompt: Gemma did not answer it within 45 s in live runs while reading the short
+  // request took about 12 s. Nemotron answers in about a second, so it picks first, and the chain (Gemma, Featherless) is its fallback.
   const {
     output: { ids: picked },
     model,
-  } = await runOpenModelStructured(
+  } = await withTimeout(
+    runExtractionModelStructured(
     `A food-service buyer needs: ${request.product}` +
       `${request.requiredClaims.length ? ` (${request.requiredClaims.join(', ')})` : ''}, ` +
       `ordered by ${request.amountUnit === 'unit' ? 'the piece or pack' : request.amountUnit === 'L' ? 'volume' : 'weight'}.
@@ -66,7 +109,11 @@ Exclude a line only when it is a different kind of product that merely contains 
 (for example yoghurt with granola, a chocolate drink for milk, ice cream, a baking mix).
 Return {"ids": [...]}, best match first. Use only ids from the input. Return {"ids": []} if none match.`,
     products.map((p) => `${p.id}: ${p.nameEn ?? p.nameFi}`).join('\n'),
-    z.object({ ids: z.array(z.union([z.string(), z.number()]).transform(String)) })
+    z.object({ ids: z.array(z.union([z.string(), z.number()]).transform(String)) }),
+    { skipScope: 'pick' }
+    ),
+    PICK_BUDGET_MS,
+    () => new HttpError(504, 'The models did not pick matching products in time. Try again.')
   );
   const byId = new Map(products.map((p) => [p.id, p]));
   const matches = [...new Set(picked)].filter((id) => ids.has(id)).slice(0, SHORTLIST_SIZE).map((id) => byId.get(id)!);
@@ -234,7 +281,7 @@ async function liveCheckOffers(
  */
 export async function planRequest(mandateId: string, text: string): Promise<RequestResult> {
   const mandate = await getMandate(mandateId);
-  const { request: interpreted, model: interpretModel } = await interpretRequest(text);
+  const { request: interpreted, model: interpretModel, check } = await interpretRequest(text);
 
   const { products: found, semantic, excludedByAllergens } = await searchProducts(
     interpreted.product,
@@ -270,6 +317,9 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
   // Before the quote and the policy preview, so the preview reads these fresh checks.
   const live = await liveCheckOffers(offers, interpreted, mandate);
   const notes = [...built.notes, ...live.notes];
+  if (check.status === 'disagree') {
+    notes.unshift(`Check before ordering: two models read the request differently (${check.differences.join('; ')}). ${check.detail}`);
+  }
 
   const best = offers[0] ?? null;
   await logAudit({
@@ -281,12 +331,13 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
     summary:
       `${interpretModel} read "${text}" as ${interpreted.amount} ${interpreted.amountUnit} of ${interpreted.product}` +
       `${interpreted.requiredClaims.length ? ` (${interpreted.requiredClaims.join(', ')})` : ''} by ${interpreted.deliveryDate}. ` +
+      `Second opinion by ${check.secondModel}: ${check.status === 'agree' ? `agrees (${check.detail})` : check.status === 'disagree' ? `DISAGREES, ${check.differences.join('; ')}` : `unavailable (${check.detail})`}. ` +
       `${excludedByAllergens ? `The mandate hid ${excludedByAllergens} matching products with blocked allergens. ` : ''}` +
       `Searched ${found.length} catalog products${semantic ? '' : ' (keyword search only: semantic search unavailable)'}, ${picked.model} kept ${shortlist.length} that match, priced those only. ` +
       (best
         ? `${offers.length} offer(s); default is "${best.label}" at €${best.total.toFixed(2)}${best.kinds.includes(mandate.preferredOffer) ? ` (the mandate prefers ${mandate.preferredOffer.replace('_', ' ')})` : ''}. ${notes.join(' ')}`
         : notes.join(' ')),
-    data: { interpreted, candidateIds: candidates.map((c) => c.productId), offers: offers.map((o) => ({ id: o.id, kinds: o.kinds, total: o.total })) },
+    data: { interpreted, interpretationCheck: check, candidateIds: candidates.map((c) => c.productId), offers: offers.map((o) => ({ id: o.id, kinds: o.kinds, total: o.total })) },
   });
 
   const quote = best
@@ -303,11 +354,13 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
     excludedByMandate: excludedByAllergens,
     interpreted,
     // The agent sees whether a product can fill the request, never the exact stock.
-    candidates: candidates.map((c) => ({ ...c, availableAmount: null })),
+    // The agent sees whether a product can fill the request, never the exact stock: not as a number, and not inside a reason.
+    candidates: candidates.map((c) => ({ ...c, availableAmount: null, reasons: c.reasons.map(sanitizeIssue) })),
     offers,
     quote: quote ? exposeQuote(quote) : null,
     policy: quote ? await previewPolicy(quote) : null,
     notes,
     liveChecks: live.liveChecks,
+    interpretationCheck: check,
   };
 }

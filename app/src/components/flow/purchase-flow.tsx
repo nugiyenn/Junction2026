@@ -46,14 +46,14 @@ const STEPS = ['Request', 'Lookup', 'Offers', 'Quote', 'Order'];
 
 const ORDER_STATUS: Record<Order['status'], { label: string; tone: 'ok' | 'warn' | 'bad' }> = {
   confirmed: { label: 'Order confirmed', tone: 'ok' },
-  pending_approval: { label: 'Waiting for a person', tone: 'warn' },
+  pending_approval: { label: 'Waiting for approval', tone: 'warn' },
   rejected: { label: 'Order rejected', tone: 'bad' },
 };
 
 const OUTCOME = {
-  auto_approve: { label: 'Auto-approved', tone: 'ok', text: 'Inside the mandate. No person needed.' },
-  needs_approval: { label: 'Needs a person', tone: 'warn', text: 'Outside the mandate. A person must approve.' },
-  reject: { label: 'Rejected', tone: 'bad', text: 'Breaks the mandate. It cannot be ordered.' },
+  auto_approve: { label: 'Auto-approved', tone: 'ok' },
+  needs_approval: { label: 'Needs approval', tone: 'warn' },
+  reject: { label: 'Rejected', tone: 'bad' },
 } as const;
 
 const money0 = (n: number) => `€${n.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
@@ -104,13 +104,13 @@ function OfferCard({
   const shortBy = covered !== null && unit !== 'unit' && covered < result.interpreted.amount - 1e-9 ? result.interpreted.amount - covered : null;
 
   return (
-    <div className={cn('flex flex-col gap-3.5 rounded-2xl border-[1.5px] bg-card p-[18px]', selected ? 'border-primary ring-4 ring-secondary' : 'border-border')}>
+    <div className={cn('flex flex-col gap-3 rounded-xl border bg-card p-4', selected ? 'border-primary ring-2 ring-primary' : 'border-border')}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold">{offer.kinds.map((k) => KIND_LABEL[k]).join(' · ')}</span>
         {selected && <Pill tone="ok">Selected</Pill>}
       </div>
       <div>
-        <p className="font-heading text-[1.9rem] leading-tight font-semibold tracking-tight">{eur(offer.total)}</p>
+        <p className="text-[1.75rem] leading-tight font-semibold tracking-tight">{eur(offer.total)}</p>
         <p className="text-xs text-muted-foreground">
           ex VAT{covered !== null && unit !== 'unit' ? ` · ${Math.round(covered * 100) / 100} ${unit}` : ''}
         </p>
@@ -130,7 +130,7 @@ function OfferCard({
         <dt className="text-muted-foreground">Reliability</dt>
         <dd className="font-semibold">{offer.reliability === null ? 'no record' : `${Math.round(offer.reliability * 100)}%`}</dd>
         <dt className="text-muted-foreground">Carbon</dt>
-        <dd className="font-semibold">{offer.co2PerKg === null ? 'no record' : `${offer.co2PerKg} kg CO₂e/kg`}</dd>
+        <dd className="font-semibold">{offer.co2PerKg === null ? 'no record' : `${offer.co2PerKg} kg CO₂-eq/kg`}</dd>
       </dl>
       {selected && (
         <ul className="flex flex-col gap-2 border-t pt-3 text-[13px]">
@@ -195,14 +195,11 @@ function DecisionCard({ policy, mandate, total }: { policy: PolicyDecision; mand
   const barColor = policy.outcome === 'auto_approve' ? 'bg-ok' : policy.outcome === 'needs_approval' ? 'bg-[#b7791f]' : 'bg-destructive';
   return (
     <Panel className="flex flex-col gap-4" aria-label="Decision">
-      <div className="flex flex-col gap-2.5">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground">What the mandate says about this offer</p>
-        <div>
-          <Pill tone={o.tone} large>
-            {o.label}
-          </Pill>
-        </div>
-        <p className="text-[15px] font-medium">{o.text}</p>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[15px] font-semibold">Mandate decision</h2>
+        <Pill tone={o.tone} large>
+          {o.label}
+        </Pill>
       </div>
       <div className="flex flex-col gap-2">
         <div className="relative h-2.5 overflow-hidden rounded-[5px] border bg-muted">
@@ -215,7 +212,7 @@ function DecisionCard({ policy, mandate, total }: { policy: PolicyDecision; mand
           <span className="absolute right-0 whitespace-nowrap">reject above {money0(mandate.maxOrderEur)}</span>
         </div>
       </div>
-      {policy.reasons.length > 0 ? (
+      {policy.reasons.length > 0 && (
         <ul className="flex flex-col gap-2.5 border-t pt-4">
           {policy.reasons.map((r) => (
             <Reason key={r} tone={policy.outcome === 'reject' ? 'bad' : 'warn'}>
@@ -223,8 +220,6 @@ function DecisionCard({ policy, mandate, total }: { policy: PolicyDecision; mand
             </Reason>
           ))}
         </ul>
-      ) : (
-        <p className="border-t pt-4 text-[13px] text-muted-foreground">No rule fired.</p>
       )}
     </Panel>
   );
@@ -322,7 +317,7 @@ export function PurchaseFlow() {
 
   return (
     <Page
-      title="A buyer's agent orders from Valio Aimo"
+      title="Buyer agent"
       actions={
         <Button variant="ghost" className="h-10" disabled={anyBusy} onClick={resetDemo}>
           Reset demo data
@@ -330,7 +325,7 @@ export function PurchaseFlow() {
       }
     >
       <section aria-label="Scenarios" className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-xs font-medium tracking-wide text-muted-foreground">Try a request</span>
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Scenario</span>
         {SCENARIOS.map((s) => (
           <Button
             key={s.label}
@@ -401,15 +396,43 @@ export function PurchaseFlow() {
           )}
         </div>
         {result && (
-          <p className="text-xs text-muted-foreground">
-            Read by {result.models.interpreted}. Matches picked by {result.models.picked}.
-            {result.excludedByMandate > 0 && ` ${result.excludedByMandate} products left out: blocked allergens.`}
-          </p>
+          <details className="text-xs text-muted-foreground">
+            <summary className="flex min-h-9 cursor-pointer flex-wrap items-center gap-2 py-1">
+              <span>Interpretation</span>
+              {result.interpretationCheck?.status === 'agree' && <Pill tone="ok">Second opinion agrees</Pill>}
+              {result.interpretationCheck?.status === 'disagree' && <Pill tone="bad">Second opinion disagrees</Pill>}
+              {result.interpretationCheck?.status === 'unavailable' && <Pill>Second opinion n/a</Pill>}
+              {result.excludedByMandate > 0 && <Pill tone="warn">{result.excludedByMandate} excluded: allergens</Pill>}
+            </summary>
+            <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 pt-1">
+              <dt>Read by</dt>
+              <dd>{result.models.interpreted}</dd>
+              <dt>Matches by</dt>
+              <dd>{result.models.picked}</dd>
+              {result.interpretationCheck && (
+                <>
+                  <dt>Second opinion</dt>
+                  <dd>
+                    {result.interpretationCheck.secondModel}
+                    {result.interpretationCheck.status === 'agree' && ` · ${result.interpretationCheck.detail}`}
+                    {result.interpretationCheck.status === 'disagree' && ` · ${result.interpretationCheck.differences.join(' · ')}`}
+                  </dd>
+                </>
+              )}
+            </dl>
+          </details>
         )}
       </Panel>
 
+      {result?.interpretationCheck?.status === 'disagree' && (
+        <Alert variant="destructive">
+          <AlertTitle>Models read the request differently</AlertTitle>
+          <AlertDescription>{result.interpretationCheck.differences.join('; ')}</AlertDescription>
+        </Alert>
+      )}
+
       {mandate && (
-        <details className="group rounded-2xl border bg-card">
+        <details className="group rounded-xl border bg-card">
           <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-sm">
             <span className="font-semibold">Mandate</span>
             <span className="text-muted-foreground">
@@ -436,8 +459,8 @@ export function PurchaseFlow() {
 
       {result && result.offers.length === 0 && (
         <Alert>
-          <AlertTitle>Nothing can fill this request</AlertTitle>
-          <AlertDescription>{result.notes.join(' ') || 'No shortlisted product can deliver the request as asked.'}</AlertDescription>
+          <AlertTitle>No offer possible</AlertTitle>
+          <AlertDescription>{result.notes.join(' ') || 'No shortlisted product can deliver this request.'}</AlertDescription>
         </Alert>
       )}
 
@@ -459,14 +482,23 @@ export function PurchaseFlow() {
                   />
                 ))}
               </div>
-              {result.notes.length > 0 && <p className="text-xs text-muted-foreground">{result.notes.join(' ')}</p>}
+              {result.notes.length > 0 && (
+                <details className="text-xs text-muted-foreground">
+                  <summary className="min-h-9 cursor-pointer py-1.5">Notes ({result.notes.length})</summary>
+                  <ul className="flex flex-col gap-1 pt-1">
+                    {result.notes.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </section>
 
             {selectedOffer && (
               <Panel className="flex flex-col gap-3" aria-label="Web check">
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-[17px] font-semibold">Checked against the web</h2>
-                  <p className="text-xs text-muted-foreground">Optional. Reads live sources for allergen and label claims, with quotes and links. It can take a minute or two.</p>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-[17px] font-semibold">Web check</h2>
+                  <span className="text-xs text-muted-foreground">Optional · up to 2 min</span>
                 </div>
                 {selectedOffer.lines.map((l) => (
                   <VerifyCheck key={l.productId} productId={l.productId} name={l.name} />
@@ -474,8 +506,8 @@ export function PurchaseFlow() {
               </Panel>
             )}
 
-            <details className="rounded-2xl border bg-card">
-              <summary className="min-h-12 cursor-pointer px-5 py-3 text-sm font-medium">How the products were chosen ({result.candidates.length})</summary>
+            <details className="rounded-xl border bg-card">
+              <summary className="min-h-12 cursor-pointer px-5 py-3 text-sm font-medium">Candidates ({result.candidates.length})</summary>
               <div className="overflow-x-auto border-t px-2 py-2">
                 <Table>
                   <TableHeader>
@@ -507,7 +539,7 @@ export function PurchaseFlow() {
                         </TableCell>
                         <TableCell>{eur(c.comparisonPrice)}</TableCell>
                         <TableCell>{eur(c.total)}</TableCell>
-                        <TableCell>{c.logisticModel === 'Stock' ? 'Confirmed' : c.logisticModel === 'Terminal' ? 'Supplier, unconfirmed' : '–'}</TableCell>
+                        <TableCell>{c.logisticModel === 'Stock' ? 'Confirmed' : c.logisticModel === 'Terminal' ? 'Unconfirmed' : '–'}</TableCell>
                         <TableCell className="max-w-64 whitespace-normal text-xs">{c.reasons.join(' ')}</TableCell>
                       </TableRow>
                     ))}
@@ -525,7 +557,7 @@ export function PurchaseFlow() {
               <Panel className="flex flex-col gap-4" aria-label="Quote">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-[17px] font-semibold">Signed quote</h2>
-                  <Pill>Held until {clock(quote.expiresAt)}</Pill>
+                  <Pill>Valid until {clock(quote.expiresAt)}</Pill>
                 </div>
                 <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
                   <dt className="text-muted-foreground">Total ex VAT</dt>
@@ -533,10 +565,10 @@ export function PurchaseFlow() {
                   <dt className="text-muted-foreground">Delivery</dt>
                   <dd className="text-right">{quote.deliveryDate}</dd>
                   <dt className="text-muted-foreground">Signature</dt>
-                  <dd className="text-right">{quote.signature ? 'Signed by Valio Aimo' : 'Unsigned'}</dd>
+                  <dd className="text-right">{quote.signature ? 'Signed' : 'Unsigned'}</dd>
                 </dl>
                 <Link href={`/exposure?quote=${quote.id}`} target="_blank" className="text-[13px] text-primary underline">
-                  See what Valio withholds from the agent
+                  Agent view ↗
                 </Link>
 
                 {!order && (
@@ -544,12 +576,12 @@ export function PurchaseFlow() {
                     {busy === 'order' ? 'Placing…' : policy?.outcome === 'needs_approval' ? 'Place order for approval' : 'Place order'}
                   </Button>
                 )}
-                {!order && policy?.outcome === 'reject' && <p className="text-xs text-muted-foreground">This offer breaks the mandate, so no order can be placed.</p>}
+                {!order && policy?.outcome === 'reject' && <p className="text-xs text-muted-foreground">Blocked by the mandate.</p>}
 
                 {order && (
                   <div
                     className={cn(
-                      'flex flex-col gap-2 rounded-[10px] p-3.5',
+                      'flex flex-col gap-2 rounded-lg p-3.5',
                       ORDER_STATUS[order.status].tone === 'ok' && 'bg-ok-soft text-ok',
                       ORDER_STATUS[order.status].tone === 'warn' && 'bg-warn-soft text-warn',
                       ORDER_STATUS[order.status].tone === 'bad' && 'bg-bad-soft text-destructive'
@@ -558,15 +590,11 @@ export function PurchaseFlow() {
                     <p className="font-semibold">
                       {order.status === 'rejected' && order.decidedBy ? 'Order declined' : ORDER_STATUS[order.status].label}
                     </p>
-                    {order.decidedBy ? (
+                    {order.decidedBy && (
                       <p className="text-[13px]">
-                        {order.status === 'confirmed' ? 'Approved' : 'Declined'} by {order.decidedBy} at {clock(order.decidedAt!)}.
+                        {order.status === 'confirmed' ? 'Approved' : 'Declined'} by {order.decidedBy} at {clock(order.decidedAt!)}
                       </p>
-                    ) : order.status === 'confirmed' ? (
-                      <p className="text-[13px]">Inside the mandate, so no one needed to sign off.</p>
-                    ) : order.status === 'pending_approval' ? (
-                      <p className="text-[13px]">The agent cannot approve its own order.</p>
-                    ) : null}
+                    )}
                     {order.status === 'pending_approval' && (
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         <Input className="h-10 w-44 bg-card" value={approver} onChange={(e) => setApprover(e.target.value)} aria-label="Approver name" />
@@ -577,7 +605,7 @@ export function PurchaseFlow() {
                           Decline
                         </Button>
                         <Link href="/approvals" className="w-full text-xs underline">
-                          Or decide it on the Approvals page
+                          Open Approvals
                         </Link>
                       </div>
                     )}
@@ -597,7 +625,7 @@ export function PurchaseFlow() {
                 <ol className="flex flex-col gap-3.5">
                   {audit.slice(0, 2).map((e) => (
                     <li key={e.id} className="flex flex-col gap-0.5">
-                      <p className="text-[13px]">{e.summary}</p>
+                      <p className="line-clamp-2 text-[13px]" title={e.summary}>{e.summary}</p>
                       <p className="text-xs text-muted-foreground">
                         {clock(e.at)} · {e.actor}
                       </p>
