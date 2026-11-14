@@ -84,17 +84,21 @@ export async function runGeminiStructured<S extends z.ZodType>(
   systemPrompt: string,
   userPrompt: string,
   schema: S,
-  model = 'gemini-3.8-flash'
+  model = 'gemini-3.8-flash',
+  timeoutMs?: number
 ): Promise<z.output<S>> {
-  const completion = await getClient('gemini').chat.completions.create({
-    model,
-    temperature: 0.1,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: `${systemPrompt}\nRespond ONLY with valid JSON.` },
-      { role: 'user', content: userPrompt },
-    ],
-  });
+  const completion = await getClient('gemini').chat.completions.create(
+    {
+      model,
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: `${systemPrompt}\nRespond ONLY with valid JSON.` },
+        { role: 'user', content: userPrompt },
+      ],
+    },
+    timeoutMs ? { timeout: timeoutMs, maxRetries: 0 } : undefined
+  );
 
   const raw = completion.choices?.[0]?.message?.content;
   if (!raw) throw new Error('Empty response from Gemini');
@@ -211,20 +215,184 @@ export async function runFeatherlessValidation<S extends z.ZodType>(
   systemPrompt: string,
   userPrompt: string,
   schema: S,
-  model = 'Qwen/Qwen2.5-72B-Instruct'
+  model = 'Qwen/Qwen2.5-72B-Instruct',
+  timeoutMs?: number
 ): Promise<z.output<S>> {
-  const completion = await getClient('featherless').chat.completions.create({
-    model,
-    temperature: 0, // 0.1 gave empty or degenerate replies on long inputs
-    max_tokens: 512, // Featherless rejects calls without it (the default is the whole context window); our JSON is small
-    messages: [
-      { role: 'system', content: `${systemPrompt}\nReturn ONLY raw JSON without markdown fences.` },
-      { role: 'user', content: userPrompt },
-    ],
-  });
+  const completion = await getClient('featherless').chat.completions.create(
+    {
+      model,
+      temperature: 0, // 0.1 gave empty or degenerate replies on long inputs
+      max_tokens: 512, // Featherless rejects calls without it (the default is the whole context window); our JSON is small
+      messages: [
+        { role: 'system', content: `${systemPrompt}\nReturn ONLY raw JSON without markdown fences.` },
+        { role: 'user', content: userPrompt },
+      ],
+    },
+    timeoutMs ? { timeout: timeoutMs, maxRetries: 0 } : undefined
+  );
 
   const raw = completion.choices?.[0]?.message?.content;
   if (!raw) throw new Error(`Empty response from Featherless: ${JSON.stringify(completion).slice(0, 300)}`);
   const cleaned = raw.replace(/```json|```/g, '').trim();
   return schema.parse(JSON.parse(cleaned));
+}
+
+// ---------------------------------------------------------------------------
+// NVIDIA Nemotron, a model-by-name runner for the evaluation, and Nemotron-first page extraction
+// ---------------------------------------------------------------------------
+
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const NEMOTRON_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+/**
+ * Nemotron 3.5 Super VL on build.nvidia.com (early-access free endpoint). The page's sample code leaves the model
+ * field blank, so this id is inferred from the model's URL slug: confirm it once a key exists. NEMOTRON_MODEL overrides it.
+ */
+const DEFAULT_NEMOTRON_MODEL = 'nvidia/nemotron-3.5-super-vl-120b-a12b';
+const nemotronModelId = () => process.env.NEMOTRON_MODEL || DEFAULT_NEMOTRON_MODEL;
+
+export interface NemotronOptions {
+  timeoutMs?: number;
+  maxTokens?: number;
+  /** Test seams: a mocked transport and a sleep that does not wait. */
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Takes the JSON object out of a model's text (dropping reasoning blocks and fences) and validates it. */
+function parseJsonAnswer<S extends z.ZodType>(raw: string, schema: S, label: string): z.output<S> {
+  const answer = raw.replace(/<(thought|think)>[\s\S]*?<\/\1>/g, '').replace(/```json|```/g, '');
+  const json = answer.slice(answer.indexOf('{'), answer.lastIndexOf('}') + 1);
+  if (!json) throw new Error(`${label} returned no JSON: ${raw.slice(0, 200)}`);
+  return schema.parse(JSON.parse(json));
+}
+
+/**
+ * Nemotron via NVIDIA's OpenAI-compatible endpoint (build.nvidia.com), validated against `schema`.
+ * The model id is NEMOTRON_MODEL, or the default above if unset.
+ * The free tier allows about 40 requests a minute, so HTTP 429 and 5xx are retried with backoff (and
+ * Retry-After); a timeout is not retried, because the caller has its own deadline.
+ */
+export async function runNemotronStructured<S extends z.ZodType>(
+  instructions: string,
+  input: string,
+  schema: S,
+  options: NemotronOptions = {}
+): Promise<z.output<S>> {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) throw new Error('Missing NVIDIA_API_KEY: cannot call nemotron');
+  const model = nemotronModelId();
+  const doFetch = options.fetch ?? fetch;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const timeoutMs = options.timeoutMs ?? 60_000;
+
+  const body = JSON.stringify({
+    model,
+    temperature: 0,
+    max_tokens: options.maxTokens ?? 1024,
+    // Reasoning off: we want the JSON, not a chain of thought, and it keeps latency down.
+    chat_template_kwargs: { enable_thinking: false },
+    messages: [
+      { role: 'system', content: `${instructions}\nReturn ONLY one raw JSON object, no markdown fences, no commentary.` },
+      { role: 'user', content: input },
+    ],
+  });
+
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await doFetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      if ((err as Error).name === 'TimeoutError' || (err as Error).name === 'AbortError') {
+        throw new Error(`Nemotron timed out after ${timeoutMs / 1000}s`);
+      }
+      if (attempt >= NEMOTRON_RETRY_DELAYS_MS.length) throw new Error(`Nemotron network error: ${(err as Error).message}`);
+      await sleep(NEMOTRON_RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+
+    if (res.status === 429 || res.status >= 500) {
+      if (attempt >= NEMOTRON_RETRY_DELAYS_MS.length) throw new Error(`Nemotron HTTP ${res.status} after ${attempt + 1} attempts`);
+      const retryAfter = Number(res.headers.get('retry-after'));
+      await sleep(retryAfter > 0 ? Math.min(retryAfter * 1000, 30_000) : NEMOTRON_RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Nemotron HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+
+    const completion = (await res.json()) as { choices?: { message?: { content?: string | null } }[] };
+    const raw = completion.choices?.[0]?.message?.content;
+    if (!raw) throw new Error(`Empty response from Nemotron: ${JSON.stringify(completion).slice(0, 300)}`);
+    return parseJsonAnswer(raw, schema, 'Nemotron');
+  }
+}
+
+/** The models the evaluation compares, by id. `requires` lists the env names a model needs before it can be called. */
+export const EVAL_MODELS = [
+  { id: 'gemma-4', label: 'Gemma 4 26B', requires: ['GEMINI_API_KEY'], modelId: () => 'gemma-4-26b-a4b-it' },
+  { id: 'qwen-2.5-72b', label: 'Qwen 2.5 72B (Featherless)', requires: ['FEATHERLESS_API_KEY'], modelId: () => 'Qwen/Qwen2.5-72B-Instruct' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', requires: ['GEMINI_API_KEY'], modelId: () => 'gemini-3.8-flash' },
+  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', requires: ['GEMINI_API_KEY'], modelId: () => 'gemini-3.1-flash-lite' },
+  { id: 'nemotron', label: 'Nemotron 3.5 Super VL', requires: ['NVIDIA_API_KEY'], modelId: nemotronModelId },
+] as const;
+
+export type EvalModelId = (typeof EVAL_MODELS)[number]['id'];
+
+/** Env names a model still needs, empty when it can be called. */
+export function missingEnv(modelName: EvalModelId): string[] {
+  const model = EVAL_MODELS.find((m) => m.id === modelName);
+  if (!model) throw new Error(`Unknown model ${modelName}`);
+  return model.requires.filter((name) => !process.env[name]);
+}
+
+/**
+ * One call to one named model, with the same prompt and schema whichever model it is, so the
+ * evaluation compares models and not plumbing. No fallback: a failure is the model's result.
+ */
+export async function runNamedModelStructured<S extends z.ZodType>(
+  modelName: EvalModelId,
+  instructions: string,
+  input: string,
+  schema: S,
+  options: { timeoutMs?: number } = {}
+): Promise<z.output<S>> {
+  const { timeoutMs } = options;
+  switch (modelName) {
+    case 'gemma-4':
+      return runGemmaStructured(instructions, input, schema, undefined, timeoutMs);
+    case 'qwen-2.5-72b':
+      return runFeatherlessValidation(instructions, input, schema, undefined, timeoutMs);
+    case 'gemini-3.8-flash':
+      return runGeminiStructured(instructions, input, schema, undefined, timeoutMs);
+    case 'gemini-3.1-flash-lite':
+      return runGeminiStructured(instructions, input, schema, 'gemini-3.1-flash-lite', timeoutMs);
+    case 'nemotron':
+      return runNemotronStructured(instructions, input, schema, { timeoutMs });
+    default:
+      throw new Error(`Unknown model ${modelName satisfies never}`);
+  }
+}
+
+/**
+ * Long page-reading extraction: Nemotron first when NVIDIA_API_KEY is set, otherwise (or if it fails) the
+ * open-model chain of runOpenModelStructured. Same signature and result shape, so a caller can swap one for
+ * the other. The returned `model` says who answered.
+ */
+export async function runExtractionModelStructured<S extends z.ZodType>(
+  instructions: string,
+  input: string,
+  schema: S,
+  options: { gemmaDeadlineMs?: number } = {}
+): Promise<{ output: z.output<S>; model: string }> {
+  if (!process.env.NVIDIA_API_KEY) return runOpenModelStructured(instructions, input, schema, options);
+  try {
+    return { output: await runNemotronStructured(instructions, input, schema, { timeoutMs: 60_000, maxTokens: 2048 }), model: 'Nemotron (NVIDIA)' };
+  } catch (nemotronError) {
+    console.warn('Nemotron failed, falling back to the open-model chain:', (nemotronError as Error).message.slice(0, 200));
+    const fallback = await runOpenModelStructured(instructions, input, schema, options);
+    return { output: fallback.output, model: `${fallback.model}, after Nemotron failed` };
+  }
 }

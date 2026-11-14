@@ -1,0 +1,77 @@
+{
+  "today": { "date": "2026-11-14", "weekday": "Saturday" },
+  "cases": [
+    {
+      "id": "hotel-milk-1000",
+      "text": "I need 1,000 litres of lactose-free milk by Monday. Find an option that meets our requirements based on price and availability.",
+      "note": "Demo scenario 1: thousands separator, diet claim in the phrase",
+      "expected": { "productAny": ["milk"], "amount": 1000, "amountUnit": "L", "deliveryDate": "2026-11-16", "requiredClaims": ["FREE_FROM_LACTOSE"] }
+    },
+    {
+      "id": "hotel-milk-100",
+      "text": "I need 100 litres of lactose-free milk by Monday.",
+      "note": "Demo scenario 2: the short form",
+      "expected": { "productAny": ["milk"], "amount": 100, "amountUnit": "L", "deliveryDate": "2026-11-16", "requiredClaims": ["FREE_FROM_LACTOSE"] }
+    },
+    {
+      "id": "school-granola-20",
+      "text": "I need 20 kg of granola by Tuesday.",
+      "note": "Demo scenario 3: no claim in the request (the nut rule is in the mandate, not the text)",
+      "expected": { "productAny": ["granola"], "amount": 20, "amountUnit": "KG", "deliveryDate": "2026-11-17", "requiredClaims": [] }
+    },
+    {
+      "id": "school-granola-100",
+      "text": "I need 100 kg of granola by Tuesday.",
+      "note": "Demo scenario 4: same wording, larger amount",
+      "expected": { "productAny": ["granola"], "amount": 100, "amountUnit": "KG", "deliveryDate": "2026-11-17", "requiredClaims": [] }
+    },
+    {
+      "id": "fi-milk-500",
+      "text": "Tarvitsen 500 litraa laktoositonta maitoa torstaiksi.",
+      "note": "Finnish phrasing, claim from 'laktoositon'",
+      "expected": { "productAny": ["milk", "maito"], "amount": 500, "amountUnit": "L", "deliveryDate": "2026-11-19", "requiredClaims": ["FREE_FROM_LACTOSE"] }
+    },
+    {
+      "id": "fi-oats-25",
+      "text": "Tilaa 25 kg kaurahiutaleita keskiviikoksi, kiitos.",
+      "note": "Finnish, product must be translated to English",
+      "expected": { "productAny": ["oat"], "amount": 25, "amountUnit": "KG", "deliveryDate": "2026-11-18", "requiredClaims": [] }
+    },
+    {
+      "id": "fi-potato-tonnes",
+      "text": "2 tonnia perunaa ens viikon maanantaiksi",
+      "note": "Finnish, tonnes are not in the prompt: 2000 KG is the right answer; Monday after today is 2026-11-16",
+      "expected": { "productAny": ["potato"], "amount": 2000, "amountUnit": "KG", "deliveryDate": "2026-11-16", "requiredClaims": [] }
+    },
+    {
+      "id": "messy-oat-milk-cases",
+      "text": "ten cases of oat milk by Thursday",
+      "note": "Messy: number in words, cases are sales units ('unit'), no diet claim stated",
+      "expected": { "productAny": ["oat"], "amount": 10, "amountUnit": "unit", "deliveryDate": "2026-11-19", "requiredClaims": [] }
+    },
+    {
+      "id": "messy-cream-dl",
+      "text": "250 dl cream for friday, lactose free pls",
+      "note": "Messy: decilitres must become 25 L",
+      "expected": { "productAny": ["cream"], "amount": 25, "amountUnit": "L", "deliveryDate": "2026-11-20", "requiredClaims": ["FREE_FROM_LACTOSE"] }
+    },
+    {
+      "id": "messy-butter-grams",
+      "text": "need 500 g butter by wed",
+      "note": "Messy: grams must become 0.5 KG, abbreviated weekday",
+      "expected": { "productAny": ["butter"], "amount": 0.5, "amountUnit": "KG", "deliveryDate": "2026-11-18", "requiredClaims": [] }
+    },
+    {
+      "id": "two-claims-yoghurt",
+      "text": "We want vegan, gluten-free yoghurt, 40 kg, by Tuesday.",
+      "note": "Two claims at once",
+      "expected": { "productAny": ["yoghurt", "yogurt"], "amount": 40, "amountUnit": "KG", "deliveryDate": "2026-11-17", "requiredClaims": ["VEGAN", "FREE_FROM_GLUTEN"] }
+    },
+    {
+      "id": "two-claims-milk-drink",
+      "text": "Order 30 litres of low-fat high-protein milk drink for Monday morning.",
+      "note": "Two claims, the product word 'drink' is not a diet word",
+      "expected": { "productAny": ["milk"], "amount": 30, "amountUnit": "L", "deliveryDate": "2026-11-16", "requiredClaims": ["LOW_FAT", "HIGH_PROTEIN"] }
+    }
+  ]
+}

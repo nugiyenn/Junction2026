@@ -443,3 +443,99 @@ export interface AuditEvent {
 export interface ApiError {
   error: string;
 }
+
+// --- models ---
+// Evaluation of the models that read purchase requests (eval/results.json, served by GET /api/models).
+
+/** One hand-labelled request in eval/requests.json. */
+export interface EvalCase {
+  id: string;
+  text: string;
+  /** Why the case is in the set. */
+  note: string;
+  expected: {
+    /** Lower-case keywords; the product matches if the model's description contains any of them. */
+    productAny: string[];
+    amount: number;
+    amountUnit: 'L' | 'KG' | 'unit';
+    deliveryDate: string;
+    requiredClaims: string[];
+  };
+}
+
+export type EvalField ='product' | 'amount' | 'amountUnit' | 'deliveryDate' | 'requiredClaims';
+
+/** timeout and error: the call failed. invalid_output: the model answered, but not with JSON that passes the schema. */
+export type EvalErrorKind = 'timeout' | 'invalid_output' | 'error';
+
+export interface EvalRun {
+  caseId: string;
+  ok: boolean;
+  latencyMs: number;
+  output: PurchaseRequest | null;
+  error: string | null;
+  errorKind: EvalErrorKind | null;
+  /** Per field: matches the hand label. Null when the run failed. */
+  correct: Record<EvalField, boolean> | null;
+}
+
+export interface EvalModelSummary {
+  attempts: number;
+  /** Runs whose output was JSON that passes the schema. */
+  valid: number;
+  validRate: number;
+  /** Per field: share of all attempts (a failed run counts as wrong) that matched the label. */
+  fieldAccuracy: Record<EvalField, number>;
+  /** Share of all attempts with every field correct. */
+  exactRate: number;
+  /** Latency over the valid runs only. Null when there were none. */
+  latencyP50Ms: number | null;
+  latencyP95Ms: number | null;
+  errors: Record<EvalErrorKind, number>;
+}
+
+export interface EvalModelResult {
+  id: string;
+  label: string;
+  /** The exact model id sent to the provider, when known. */
+  modelId: string | null;
+  /** ran: every case was attempted. not_run: no key or model id, so nothing was called. */
+  status: 'ran' | 'not_run';
+  /** Why a model was not run, e.g. "NVIDIA_API_KEY missing". */
+  reason: string | null;
+  /** When this model's runs happened (a partial rerun keeps the other models' times). */
+  ranAt: string;
+  summary: EvalModelSummary | null;
+  runs: EvalRun[];
+}
+
+/** Do the models that answered agree on the two fields that drive deterministic quantities: amount and unit? */
+export interface EvalAgreement {
+  caseId: string;
+  /** The request as the buyer wrote it. */
+  text: string;
+  /** Model id to [amount, amountUnit]; null when that model's run failed. */
+  answers: Record<string, [number, string] | null>;
+  /** All models that answered gave the same amount and unit. Null with fewer than two answers. */
+  agree: boolean | null;
+  /** Amount and unit the hand label expects. */
+  expected: [number, string];
+  /** Models whose amount or unit differs from the label. */
+  wrong: string[];
+}
+
+export interface EvalResults {
+  generatedAt: string;
+  /** The date the prompt told the models it was, so "by Monday" has one right answer. */
+  today: string;
+  caseCount: number;
+  models: EvalModelResult[];
+  agreement: EvalAgreement[];
+  agreementSummary: {
+    /** Cases where at least two models answered. */
+    comparable: number;
+    agreed: number;
+    /** Cases where every model that answered got amount and unit right. */
+    allCorrect: number;
+  };
+}

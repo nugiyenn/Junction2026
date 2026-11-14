@@ -1176,6 +1176,148 @@
           }
         }
       }
+    },
+    "/api/models": {
+      "get": {
+        "summary": "Model evaluation",
+        "description": "Results of the last run of scripts/eval-models.mts: each model reading the same hand-labelled purchase requests, scored against the labels, plus whether the models agree on amount and unit. A model that was not run says why. The model only interprets; amount, price and approval are code.",
+        "tags": [
+          "Models"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generatedAt": {
+                      "type": "string"
+                    },
+                    "today": {
+                      "type": "string",
+                      "description": "The date the prompt told the models it was."
+                    },
+                    "caseCount": {
+                      "type": "integer"
+                    },
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "modelId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ran",
+                              "not_run"
+                            ]
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Why the model was not run, e.g. NVIDIA_API_KEY missing."
+                          },
+                          "ranAt": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "attempts": {
+                                "type": "integer"
+                              },
+                              "valid": {
+                                "type": "integer"
+                              },
+                              "validRate": {
+                                "type": "number"
+                              },
+                              "fieldAccuracy": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              },
+                              "exactRate": {
+                                "type": "number"
+                              },
+                              "latencyP50Ms": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "latencyP95Ms": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "errors": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              }
+                            }
+                          },
+                          "runs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            },
+                            "description": "One entry per case: output, latency, error and per-field correctness."
+                          }
+                        }
+                      }
+                    },
+                    "agreement": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "Per case: each model's amount and unit, whether they agree, and which models differ from the label."
+                    },
+                    "agreementSummary": {
+                      "type": "object",
+                      "properties": {
+                        "comparable": {
+                          "type": "integer"
+                        },
+                        "agreed": {
+                          "type": "integer"
+                        },
+                        "allCorrect": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
