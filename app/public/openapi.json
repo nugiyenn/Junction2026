@@ -1787,6 +1787,156 @@
           }
         }
       }
+    },
+    "/api/autonomy": {
+      "get": {
+        "summary": "Earned autonomy suggestions",
+        "description": "Proposals to loosen or tighten a buyer's auto-approve limit, computed by plain code from the record of human decisions (real orders plus labelled synthetic demo history; `note` says how much is synthetic). A person accepts a proposal with POST. No model is involved.",
+        "tags": [
+          "Mandate"
+        ],
+        "parameters": [
+          {
+            "name": "mandateId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutonomyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown mandate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Accept an autonomy suggestion",
+        "description": "A person accepts a suggestion. The server recomputes the suggestions and refuses with 409 when the id no longer matches, then changes the auto-approve limit through the normal mandate update, which writes the decision record. Not exposed over MCP.",
+        "tags": [
+          "Mandate"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "suggestionId": {
+                    "type": "string",
+                    "description": "The `id` of a suggestion from GET."
+                  },
+                  "decidedBy": {
+                    "type": "string",
+                    "description": "Who accepts it. Written to the decision record."
+                  }
+                },
+                "required": [
+                  "mandateId",
+                  "suggestionId",
+                  "decidedBy"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutonomyAcceptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown mandate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The suggestion is no longer current",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "approverKey": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -3591,6 +3741,204 @@
           "lines",
           "note",
           "readBy"
+        ]
+      },
+      "AutonomySuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deterministic hash of mandate, field, new value and evidence counts."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "raise_auto_limit",
+              "lower_auto_limit"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "enum": [
+              "autoApproveLimitEur"
+            ]
+          },
+          "from": {
+            "type": "number"
+          },
+          "to": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "orders": {
+                "type": "integer"
+              },
+              "approved": {
+                "type": "integer"
+              },
+              "declined": {
+                "type": "integer",
+                "description": "Declined by a person or rejected by the mandate (lower rule)."
+              },
+              "windowDays": {
+                "type": "integer"
+              },
+              "syntheticShare": {
+                "type": "number",
+                "description": "0-1 share of the evidence orders that are generated demo history."
+              }
+            },
+            "required": [
+              "orders",
+              "approved",
+              "declined",
+              "windowDays",
+              "syntheticShare"
+            ]
+          },
+          "effect": {
+            "type": "object",
+            "properties": {
+              "autoApprovedShareBefore": {
+                "type": "number"
+              },
+              "autoApprovedShareAfter": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "autoApprovedShareBefore",
+              "autoApprovedShareAfter"
+            ],
+            "description": "Share of the window's orders, by size alone, under the limit."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "field",
+          "from",
+          "to",
+          "reason",
+          "evidence",
+          "effect"
+        ]
+      },
+      "AutonomySummary": {
+        "type": "object",
+        "properties": {
+          "reviewed": {
+            "type": "integer"
+          },
+          "approved": {
+            "type": "integer"
+          },
+          "declined": {
+            "type": "integer"
+          },
+          "windowDays": {
+            "type": "integer"
+          },
+          "syntheticShare": {
+            "type": "number"
+          },
+          "trajectory": {
+            "type": "array",
+            "description": "Share of reviewed orders approved, per month.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": {
+                  "type": "string"
+                },
+                "reviewed": {
+                  "type": "integer"
+                },
+                "approved": {
+                  "type": "integer"
+                },
+                "approvalRate": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "month",
+                "reviewed",
+                "approved",
+                "approvalRate"
+              ]
+            }
+          },
+          "noSuggestionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reviewed",
+          "approved",
+          "declined",
+          "windowDays",
+          "syntheticShare",
+          "trajectory",
+          "noSuggestionReason"
+        ]
+      },
+      "AutonomyResponse": {
+        "type": "object",
+        "properties": {
+          "mandate": {
+            "$ref": "#/components/schemas/Mandate"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutonomySuggestion"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AutonomySummary"
+          },
+          "note": {
+            "type": "string",
+            "description": "How much of the history is generated demo history."
+          },
+          "evidenceSince": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the limit was last changed; only later decisions count."
+          }
+        },
+        "required": [
+          "mandate",
+          "suggestions",
+          "summary",
+          "note",
+          "evidenceSince"
+        ]
+      },
+      "AutonomyAcceptResponse": {
+        "type": "object",
+        "properties": {
+          "mandate": {
+            "$ref": "#/components/schemas/Mandate"
+          },
+          "suggestion": {
+            "$ref": "#/components/schemas/AutonomySuggestion"
+          }
+        },
+        "required": [
+          "mandate",
+          "suggestion"
         ]
       }
     },
