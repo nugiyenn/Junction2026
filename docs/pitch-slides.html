@@ -6,12 +6,13 @@
 <title>Trusted Trade Agents</title>
 <style>
   :root {
-    --ink: #14201c;
-    --muted: #55615c;
-    --line: #d5dcd8;
+    --ink: #23282d;
+    --muted: #555759;
+    --line: #d6dde0;
     --bg: #ffffff;
-    --soft: #f4f7f5;
-    --accent: #0B5D4B;
+    --soft: #f1f5f6;
+    --accent: #005670;   /* petrol, Valio Aimo's colour */
+    --lime: #c0e021;     /* small highlights only */
     /* One unit scales the whole slide: 1280 px wide gives 12.8 px. Never below 8 px, so phones stay readable. */
     --u: max(8px, min(1vw, 1.8vh));
   }
@@ -40,6 +41,10 @@
     font-size: calc(var(--u) * 1.3); font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
     color: var(--accent);
   }
+  .kicker::before {
+    content: ""; display: inline-block; width: 2.2em; height: .3em; margin-right: .75em;
+    background: var(--lime); vertical-align: .12em;
+  }
   h1 {
     margin: 0 0 calc(var(--u) * 2.4);
     max-width: 30em;
@@ -63,9 +68,9 @@
   .note { margin-top: calc(var(--u) * 1.4); max-width: 60em; font-size: calc(var(--u) * 1.4); color: var(--muted); }
   strong { font-weight: 650; }
 
-  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: calc(var(--u) * 4); align-items: center; }
-  .two li { font-size: calc(var(--u) * 1.8); margin-bottom: calc(var(--u) * 0.9); }
-  .diagram { width: 100%; height: auto; display: block; }
+  .two { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.65fr); gap: calc(var(--u) * 4); align-items: center; }
+  .two li { font-size: calc(var(--u) * 1.65); margin-bottom: calc(var(--u) * 0.8); }
+  .diagram { width: 100%; height: auto; max-height: calc(var(--u) * 27); display: block; }
   .flow { width: 100%; height: auto; display: block; margin: 0 0 calc(var(--u) * 2.2); max-width: 70em; }
 
   /* SVG drawing */
@@ -76,7 +81,8 @@
   .t { font: 600 15px -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: var(--ink); }
   .t.w { fill: #fff; }
   .s { font: 400 12.5px -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: var(--muted); }
-  .s.w { fill: #e4efeb; }
+  .s.w { fill: #d9eaf0; }
+  .harness { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 2 4; }
   .arrow { stroke: var(--ink); stroke-width: 1.5; fill: none; }
   .arrowhead { fill: var(--ink); }
 
@@ -85,7 +91,7 @@
     font-size: max(12px, calc(var(--u) * 1.2)); color: var(--muted);
     font-variant-numeric: tabular-nums; pointer-events: none;
   }
-  .hud b { color: var(--accent); font-weight: 650; }
+  .hud b { color: var(--accent); font-weight: 650; box-shadow: inset 0 -.28em 0 var(--lime); }
   .brand {
     position: fixed; left: calc(var(--u) * 8); bottom: calc(var(--u) * 1.4);
     font-size: max(12px, calc(var(--u) * 1.2)); color: var(--muted); pointer-events: none;
@@ -142,20 +148,21 @@
   <!-- 2 Solution -->
   <section class="slide" aria-label="Slide 2: Solution">
     <p class="kicker">2 · Solution</p>
-    <h1>A gateway where the model reads and code decides.</h1>
+    <h1>Trust you can verify, autonomy you can earn.</h1>
     <ul>
       <li>A buyer's agent sends a plain request: "1,000 litres of lactose-free milk by Monday".</li>
       <li>The gateway returns offers, then one fixed price signed by Valio.</li>
       <li>The buyer's mandate decides: confirmed, sent to a person, or rejected.</li>
-      <li>Substitutes come only from Valio's own list and always need sign-off.</li>
-      <li>Every step goes into a plain-language, hash-chained record.</li>
+      <li>Autonomy is earned: code proposes a higher limit after people keep approving, and a person accepts.</li>
+      <li>Every order gets a receipt anyone can verify, and a hash-chained record behind it.</li>
     </ul>
+    <p class="note">A model reads the request. Code decides everything else.</p>
   </section>
 
   <!-- 3 Demo flow -->
   <section class="slide" aria-label="Slide 3: Live demo flow">
     <p class="kicker">3 · Live demo flow</p>
-    <h1>Four requests, four outcomes.</h1>
+    <h1>Four requests, four outcomes, then four extras.</h1>
 
     <svg class="flow" viewBox="0 0 960 84" role="img" aria-label="Flow: request, offers, signed quote, order, approval, record">
       <defs>
@@ -190,7 +197,7 @@
         <text class="s" x="396" y="78" text-anchor="middle">fixed price, Ed25519</text>
         <text class="s" x="560" y="78" text-anchor="middle">mandate decides</text>
         <text class="s" x="724" y="78" text-anchor="middle">a person, if needed</text>
-        <text class="s" x="890" y="78" text-anchor="middle">hash-chained</text>
+        <text class="s" x="890" y="78" text-anchor="middle">hash-chained, receipt</text>
       </g>
     </svg>
 
@@ -199,32 +206,34 @@
       <li><strong>Hotel, 100 L:</strong> confirmed automatically.</li>
       <li><strong>School, 20 kg granola:</strong> nut-risk products are hidden before pricing.</li>
       <li><strong>School, 100 kg granola:</strong> stock is short, so a split or a substitute needs sign-off.</li>
+      <li><strong>Extras:</strong> a receipt checked in the browser, the red team page, an order from a photo, earned autonomy.</li>
     </ul>
+    <p class="note">Prices, stock and model answers vary from run to run: rehearse before presenting.</p>
   </section>
 
   <!-- 4 Data firewall -->
   <section class="slide" aria-label="Slide 4: Data firewall and governance">
     <p class="kicker">4 · Data firewall and governance</p>
-    <h1>What the agent sees is decided in code.</h1>
+    <h1>What the agent sees is decided in code, and we attack it ourselves.</h1>
     <ul>
-      <li>Quotes and orders never carry list price, discount, supplier or exact stock (<code>exposure.ts</code>).</li>
-      <li>The mandate is code: spend limits, blocked allergens, reliability, CO2, confirmed stock (<code>policy.ts</code>).</li>
-      <li>Missing allergen data counts as unknown, never as safe.</li>
-      <li>Quotes are Ed25519-signed. The record is hash-chained and tamper-evident.</li>
-      <li>Agents have no approve tool. Approval stays human.</li>
+      <li>Quotes and orders never carry list price, discount, supplier or exact stock. Catalog search hides supplier and internal category (<code>exposure.ts</code>).</li>
+      <li>The mandate is code (<code>policy.ts</code>). A rolling 24-hour rule sends many small orders to a person.</li>
+      <li>Missing allergen data counts as unknown. Any page can make an order stricter; only the maker or a known grocery or wholesale site can loosen it.</li>
+      <li>Approving and editing a mandate need an approver key when one is set (<code>auth.ts</code>). MCP has no approve tool.</li>
+      <li><code>/red-team</code> runs ten attacks against the real checks and reports blocked, allowed or not protected.</li>
     </ul>
   </section>
 
   <!-- 5 Open standards -->
   <section class="slide" aria-label="Slide 5: Open standards and MCP">
     <p class="kicker">5 · Open standards and MCP</p>
-    <h1>Open interfaces, not a platform's black box.</h1>
+    <h1>Open interfaces, and proof you can check yourself.</h1>
     <ul>
-      <li>MCP server at <code>/api/mcp</code>: seven tools, no approve, no mandate editing.</li>
-      <li>REST with an OpenAPI file. A test fails if routes and spec drift apart.</li>
+      <li>MCP server at <code>/api/mcp</code>: seven tools, no approve, no mandate editing. REST with an OpenAPI file; a test fails if routes and spec drift apart.</li>
       <li>Any agent can verify a quote with Valio's public key at <code>/.well-known/jwks.json</code>.</li>
+      <li>Each order has a signed receipt. <code>/verify</code> runs six checks in the browser with WebCrypto.</li>
       <li><code>Idempotency-Key</code> on orders. Rate-limit headers on REST.</li>
-      <li>Honest limit: no per-agent login yet. Callers pass a mandate id.</li>
+      <li>Honest limit: the approver key exists, per-agent login does not. Callers pass a mandate id.</li>
     </ul>
   </section>
 
@@ -237,38 +246,67 @@
         <ul>
           <li><strong>Aiven:</strong> Postgres with pgvector, Valkey, Kafka, ClickHouse snapshot.</li>
           <li><strong>Oxylabs:</strong> live allergen, label and recall checks, with quotes and URLs.</li>
-          <li><strong>Gemma and Gemini</strong> read the request twice. Code compares.</li>
-          <li><strong>Nemotron</strong> reads long pages and picks products. <strong>Featherless</strong> Qwen is the fallback.</li>
+          <li><strong>Gemma</strong> reads the request, <strong>Gemini</strong> reads it again, code compares.</li>
+          <li><strong>Nemotron</strong> picks products and reads pages and photos. <strong>Featherless</strong> Qwen is the fallback.</li>
           <li>Models interpret. Code decides.</li>
         </ul>
       </div>
       <div>
-        <svg class="diagram" viewBox="0 0 800 420" role="img" aria-label="Architecture: buyer agent to MCP and REST gateway to mandate policy in code, backed by Aiven Postgres, Valkey and Kafka; Valio price and availability API; Oxylabs live web; models Gemma, Gemini and Nemotron interpret only">
+        <svg class="diagram" viewBox="0 0 800 420" role="img" aria-label="Architecture: a buyer agent and a photo or voice intake feed the MCP and REST gateway, which has an exposure filter and an approver key. The mandate policy in code decides. A red team harness attacks the gateway and policy. Models by role (Gemma, Gemini, Nemotron, Qwen) interpret only. The gateway calls the Valio price and availability API and Oxylabs. An approver, a person, approves with a key and a device signature. Signed receipts are checked at verify in the browser. Aiven holds Postgres with pgvector, Valkey, Kafka and a ClickHouse snapshot.">
           <defs>
             <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
             </marker>
           </defs>
 
-          <!-- models, interpret only -->
-          <rect class="box soft" x="190" y="14" width="390" height="64" rx="8"/>
-          <text class="t" x="385" y="40" text-anchor="middle">Models: Gemma, Gemini, Nemotron</text>
-          <text class="s" x="385" y="60" text-anchor="middle">read requests and pages; interpret only</text>
+          <!-- intake -->
+          <rect class="box" x="0" y="10" width="150" height="70" rx="8"/>
+          <text class="t" x="75" y="38" text-anchor="middle">Intake</text>
+          <text class="s" x="75" y="56" text-anchor="middle">photo or voice</text>
+          <text class="s" x="75" y="71" text-anchor="middle">a person taps a line</text>
+
+          <!-- models by role, interpret only -->
+          <rect class="box soft" x="190" y="10" width="390" height="70" rx="8"/>
+          <text class="t" x="385" y="32" text-anchor="middle">Models by role: interpret only</text>
+          <text class="s" x="385" y="50" text-anchor="middle">Gemma reads, Gemini second opinion, Qwen fallback</text>
+          <text class="s" x="385" y="66" text-anchor="middle">Nemotron picks products, reads pages and photos</text>
+
+          <!-- red team harness around gateway and policy -->
+          <rect class="harness" x="178" y="98" width="414" height="126" rx="10"/>
+          <text class="s" x="385" y="214" text-anchor="middle">red team harness attacks this</text>
 
           <!-- buyer agent -->
-          <rect class="box" x="0" y="168" width="150" height="70" rx="8"/>
-          <text class="t" x="75" y="198" text-anchor="middle">Buyer agent</text>
-          <text class="s" x="75" y="218" text-anchor="middle">any MCP or REST client</text>
+          <rect class="box" x="0" y="108" width="150" height="78" rx="8"/>
+          <text class="t" x="75" y="140" text-anchor="middle">Buyer agent</text>
+          <text class="s" x="75" y="160" text-anchor="middle">any MCP or REST client</text>
 
           <!-- gateway -->
-          <rect class="box" x="190" y="168" width="180" height="70" rx="8"/>
-          <text class="t" x="280" y="198" text-anchor="middle">MCP / REST gateway</text>
-          <text class="s" x="280" y="218" text-anchor="middle">exposure filter on output</text>
+          <rect class="box" x="190" y="108" width="180" height="78" rx="8"/>
+          <text class="t" x="280" y="134" text-anchor="middle">MCP / REST gateway</text>
+          <text class="s" x="280" y="153" text-anchor="middle">exposure filter on output</text>
+          <text class="s" x="280" y="170" text-anchor="middle">approver key, rate limits</text>
 
           <!-- policy -->
-          <rect class="box accent" x="400" y="168" width="180" height="70" rx="8"/>
-          <text class="t w" x="490" y="198" text-anchor="middle">Mandate policy (code)</text>
-          <text class="s w" x="490" y="218" text-anchor="middle">code decides, with reasons</text>
+          <rect class="box accent" x="400" y="108" width="180" height="78" rx="8"/>
+          <text class="t w" x="490" y="134" text-anchor="middle">Mandate policy (code)</text>
+          <text class="s w" x="490" y="153" text-anchor="middle">rolling 24 h rule</text>
+          <text class="s w" x="490" y="170" text-anchor="middle">code decides, with reasons</text>
+
+          <!-- row 3 -->
+          <rect class="box" x="0" y="240" width="150" height="60" rx="8"/>
+          <text class="t" x="75" y="266" text-anchor="middle">Approver</text>
+          <text class="s" x="75" y="284" text-anchor="middle">key + device signature</text>
+          <rect class="box" x="190" y="240" width="180" height="60" rx="8"/>
+          <text class="t" x="280" y="266" text-anchor="middle">Valio API</text>
+          <text class="s" x="280" y="284" text-anchor="middle">price and availability</text>
+          <rect class="box" x="400" y="240" width="180" height="60" rx="8"/>
+          <text class="t" x="490" y="266" text-anchor="middle">Oxylabs</text>
+          <text class="s" x="490" y="284" text-anchor="middle">live web, stored checks</text>
+
+          <!-- receipts -->
+          <rect class="box soft" x="190" y="330" width="390" height="60" rx="8"/>
+          <text class="t" x="385" y="356" text-anchor="middle">Signed receipts</text>
+          <text class="s" x="385" y="374" text-anchor="middle">Valio signature, human signature; checked at /verify in the browser</text>
 
           <!-- Aiven group -->
           <rect class="group" x="618" y="14" width="182" height="392" rx="10"/>
@@ -287,23 +325,18 @@
           <text class="t" x="709" y="332" text-anchor="middle">ClickHouse</text>
           <text class="s" x="709" y="350" text-anchor="middle">stats snapshot</text>
 
-          <!-- external: Valio API, Oxylabs -->
-          <rect class="box" x="190" y="330" width="180" height="70" rx="8"/>
-          <text class="t" x="280" y="360" text-anchor="middle">Valio API</text>
-          <text class="s" x="280" y="380" text-anchor="middle">price and availability</text>
-          <rect class="box" x="400" y="330" width="180" height="70" rx="8"/>
-          <text class="t" x="490" y="360" text-anchor="middle">Oxylabs</text>
-          <text class="s" x="490" y="380" text-anchor="middle">live web, stored checks</text>
-
           <!-- arrows -->
-          <line class="arrow" x1="152" y1="203" x2="186" y2="203" marker-end="url(#ah2)"/>
-          <line class="arrow" x1="372" y1="203" x2="396" y2="203" marker-end="url(#ah2)"/>
-          <line class="arrow" x1="582" y1="203" x2="630" y2="203" marker-end="url(#ah2)"/>
-          <line class="arrow" x1="280" y1="166" x2="280" y2="82" marker-end="url(#ah2)"/>
-          <line class="arrow" x1="280" y1="240" x2="280" y2="326" marker-end="url(#ah2)"/>
-          <line class="arrow" x1="490" y1="328" x2="490" y2="242" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="152" y1="45" x2="186" y2="45" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="280" y1="106" x2="280" y2="84" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="152" y1="140" x2="186" y2="140" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="372" y1="140" x2="396" y2="140" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="582" y1="147" x2="614" y2="147" marker-end="url(#ah2)"/>
+          <path class="arrow" d="M150 270 H168 V168 H186" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="280" y1="238" x2="280" y2="190" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="490" y1="238" x2="490" y2="190" marker-end="url(#ah2)"/>
+          <line class="arrow" x1="614" y1="360" x2="584" y2="360" marker-end="url(#ah2)"/>
         </svg>
-        <p class="note">12 labelled requests, exact match on every field: Gemma 12, Gemini 3.8 Flash 12, Nemotron 11, Qwen 0 (weekday dates a day late; code now sets weekdays).</p>
+        <p class="note">12 labelled requests, exact match on every field: Gemma 12, Gemini 3.8 Flash 12, Nemotron 11, Qwen 0 (raw weekday dates a day late; code now sets weekdays).</p>
       </div>
     </div>
   </section>
@@ -314,10 +347,10 @@
     <h1>Why Valio should own this door.</h1>
     <ul>
       <li>List price, discount and supplier stay inside Valio. Agents get one fixed, signed price.</li>
-      <li>Valio sets the rules agents work under: limits, approvals, substitutes.</li>
-      <li>The back end is protected: shortlist-only pricing, caching, per-buyer rate limits.</li>
-      <li>Buyer and Valio share one readable decision record.</li>
-      <li>One standard door for any buyer's agent, instead of third-party aggregators.</li>
+      <li>Valio sets the rules agents work under, and autonomy grows only when a person accepts it.</li>
+      <li>The back end is protected: shortlist-only pricing, caching, per-buyer rate limits, time limits on every call.</li>
+      <li>Buyer and Valio share one decision record and receipts either side can verify.</li>
+      <li>One standard door for any buyer's agent, and an order can start from a photo or a spoken line.</li>
     </ul>
     <p class="note">Prototype on synthetic data. Orders are stored in our database; they are not yet sent to Valio's order system.</p>
   </section>

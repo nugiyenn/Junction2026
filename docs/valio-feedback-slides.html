@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trusted Trade Agents: feedback session with Valio Aimo</title>
 <style>
-  :root { --ink:#13201B; --muted:#586660; --line:#E1E6E2; --bg:#FFFFFF; --soft:#F5F7F5; --accent:#0B5D4B; --accent-soft:#E4F0EC; --warn:#7A4E00; --warn-soft:#FFF3D6; }
+  :root { --ink:#23282d; --muted:#555759; --line:#DDE3E6; --bg:#FFFFFF; --soft:#F3F6F7; --accent:#005670; --accent-soft:#E1EEF2; --lime:#c0e021; --warn:#7A4E00; --warn-soft:#FFF3D6; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family: Inter, "Helvetica Neue", Arial, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   .slide { position:absolute; inset:0; display:none; flex-direction:column; justify-content:center; padding:7vh 8vw 11vh; gap:2.4vh; animation: fade .25s ease; }
   .slide.active { display:flex; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
   .kicker { font-size:clamp(11px,1.5vh,15px); letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0; }
+  .kicker::before { content:""; display:inline-block; width:2.2em; height:.3em; margin-right:.75em; background:var(--lime); vertical-align:.12em; }
   h1 { font-size:clamp(30px,6vh,64px); line-height:1.08; margin:0; letter-spacing:-.02em; font-weight:650; max-width:22ch; }
   h2 { font-size:clamp(24px,4.6vh,48px); line-height:1.12; margin:0; letter-spacing:-.015em; font-weight:650; max-width:26ch; }
   p, li { font-size:clamp(15px,2.5vh,26px); line-height:1.45; margin:0; }
@@ -41,17 +42,20 @@
   .step small { font-size:clamp(11px,1.7vh,16px); color:var(--muted); line-height:1.35; }
   .arrow { align-self:center; color:var(--muted); font-size:clamp(14px,2.4vh,24px); }
   .qs { counter-reset:q; display:flex; flex-direction:column; gap:1.5vh; }
+  .qs.dense { gap:1vh; }
+  .qs.dense li { font-size:clamp(13px,2.15vh,22px); }
   .qs li { counter-increment:q; display:flex; gap:1vw; align-items:baseline; }
   .qs li::before { content:counter(q); flex:none; width:1.6em; height:1.6em; border-radius:50%; background:var(--accent); color:#fff; font-size:.8em; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
   .foot { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; align-items:center; padding:2vh 8vw; font-size:clamp(11px,1.6vh,14px); color:var(--muted); background:linear-gradient(transparent, #fff 55%); pointer-events:none; }
   .notes { display:none; position:fixed; left:0; right:0; bottom:0; max-height:34vh; overflow:auto; background:var(--ink); color:#fff; padding:2vh 8vw 3vh; z-index:5; }
   .notes p { color:#fff; font-size:clamp(13px,2vh,19px); }
-  .notes b { color:#9ad1c0; letter-spacing:.08em; font-size:.8em; text-transform:uppercase; }
+  .notes b { color:var(--lime); letter-spacing:.08em; font-size:.8em; text-transform:uppercase; }
   body.notes-on .notes.show { display:block; }
   .hint { position:fixed; top:1.6vh; right:2vw; font-size:12px; color:var(--muted); }
   @media (max-width:760px) { .grid2, .grid3 { grid-template-columns:1fr; } .flow { flex-direction:column; } .arrow { transform:rotate(90deg); } .slide { overflow:auto; justify-content:flex-start; padding-top:6vh; } }
   @media print {
     @page { size: A4 landscape; margin: 0; }
+    * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     html, body { height:auto; }
     .slide { position:relative; display:flex !important; min-height:100vh; page-break-after:always; animation:none; }
     .foot, .hint, .notes { display:none !important; }
@@ -91,7 +95,7 @@
     <div class="step"><b>3</b><span>Offers</span><small>Cheapest, most reliable, lowest CO₂</small></div><div class="arrow">→</div>
     <div class="step"><b>4</b><span>Signed quote</span><small>Fixed price, held 15 minutes</small></div><div class="arrow">→</div>
     <div class="step"><b>5</b><span>Order</span><small>Customer rules decide</small></div><div class="arrow">→</div>
-    <div class="step"><b>6</b><span>Approval</span><small>A named person, if needed</small></div>
+    <div class="step"><b>6</b><span>Approval</span><small>A person, if needed</small></div>
   </div>
   <p class="lead">A language model only reads the request. Quantities, prices, rules and approval are code.</p>
   <div class="ask"><strong>Feedback</strong><p>Does this match how an order really moves? What is missing or in the wrong place?</p></div>
@@ -114,7 +118,7 @@
 </section>
 
 <!-- 5 -->
-<section class="slide" data-notes="This is the core of the guardrails. Show the two demo mandates. Ask for real numbers: typical auto-approve limits, who signs off, whether schools and hotels differ. Write down thresholds they mention.">
+<section class="slide" data-notes="This is the core of the guardrails. Show the two demo mandates. Mention the rolling 24-hour rule: confirmed and pending orders of the last day plus this one above the limit go to a person, so ten orders just under the limit do not slip through. It never rejects by itself. Ask for real numbers: typical auto-approve limits, who signs off, whether schools and hotels differ. Write down thresholds they mention.">
   <p class="kicker">Customer rules</p>
   <h2>The buyer decides what the agent may do alone</h2>
   <table>
@@ -126,7 +130,7 @@
     <tr><td>Carbon limit</td><td>none</td><td>5 kg CO₂-eq / kg</td></tr>
     <tr><td>Unconfirmed supplier stock</td><td>allowed</td><td>needs a person</td></tr>
   </table>
-  <p class="lead">Anything else goes to a person: a substitute, an allergen risk, a live web source that disagrees.</p>
+  <p class="lead">Anything else goes to a person: a substitute, an allergen risk, a live web source that disagrees, or orders in the last 24 hours that add up above the limit.</p>
   <div class="ask"><strong>Feedback</strong><p>Do customers have limits like these? Who approves, and what are typical thresholds?</p></div>
 </section>
 
@@ -158,13 +162,14 @@
 </section>
 
 <!-- 8 -->
-<section class="slide" data-notes="Explain that catalog allergen data can be missing or wrong, so we check live sources and show the evidence. Every claim comes with a quote that really appears on the page, and a link. Ask how reliable allergen data is in practice and who is liable if an agent orders the wrong thing.">
+<section class="slide" data-notes="Explain that catalog allergen data can be missing or wrong, so we check live sources and show the evidence. Every claim comes with a quote that really appears on the page, and a link. Explain that a page can only tighten an order unless it comes from the maker or a known shop, so a planted sentence elsewhere cannot clear an allergen. Ask how reliable allergen data is in practice and who is liable if an agent orders the wrong thing.">
   <p class="kicker">Live web checks</p>
   <h2>Allergen claims and recalls, checked against real sources</h2>
   <ul class="dots">
     <li>Product pages are read and each claim is kept only if its quote is on the page.</li>
     <li>The Finnish Food Authority's recall notices are searched for the product.</li>
     <li>A source that disagrees with the catalog sends the order to a person.</li>
+    <li>Any page can make an order stricter. Only the maker or a known grocery or wholesale site can clear an unknown allergen.</li>
     <li>Every result shows its source link.</li>
   </ul>
   <p class="lead">"No recall found" means the search found none, not that none exists.</p>
@@ -172,47 +177,113 @@
 </section>
 
 <!-- 9 -->
-<section class="slide" data-notes="Openness. The same gateway is a documented REST API and an MCP server that any compatible agent can use. There is deliberately no tool for an agent to approve an order or change a customer's rules. Also mention the protection for Valio's own API: only a short list is priced live, answers are cached briefly, and each customer has rate limits. Be honest that agent authentication is not built yet.">
+<section class="slide" data-notes="Openness. The same gateway is a documented REST API and an MCP server that any compatible agent can use. There is deliberately no tool for an agent to approve an order or change a customer's rules. Also mention the protection for Valio's own API: only a short list is priced live, answers are cached briefly, and each customer has rate limits. There is now an approver key: approving an order, editing a customer's rules and accepting an autonomy suggestion need it on the REST API when it is set, and the MCP server never had an approve tool. Be honest that there is still no login for the agent itself: callers pass a customer id, and the key is one shared secret, not a named person.">
   <p class="kicker">Open interface</p>
   <h2>Any agent can connect. None can approve.</h2>
   <div class="grid2">
     <div class="card"><h3>How agents connect</h3><ul>
-      <li>REST API with an OpenAPI description</li><li>MCP server, seven tools</li><li>No tool to approve or change a customer's rules</li></ul></div>
+      <li>REST API with an OpenAPI description</li><li>MCP server, seven tools</li><li>No tool to approve or change a customer's rules</li><li>Approving on REST needs a key, when one is set</li></ul></div>
     <div class="card"><h3>Protecting Valio's API</h3><ul>
       <li>Only a short list is priced live</li><li>Short cache on price and stock</li><li>Rate limits per customer</li></ul></div>
   </div>
   <div class="ask"><strong>Feedback</strong><p>How should an agent prove who it acts for? Would Valio offer an endpoint like this?</p></div>
 </section>
 
-<!-- 10 -->
+<!-- 10 receipts -->
+<section class="slide" data-notes="Every order can export a receipt: the order and quote as the agent saw them, the customer's rules as they were with a hash, the policy outcome, the person's decision with a signature from their device, the record entries with their hash links, and Valio's signature over all of it. The verify page checks six things in the browser. Press Edit a value to show a failure. Be honest: the key comes from our server unless you paste one, a device key is not a named person, the chain shows tampering and does not prevent it, and the rules are shown as they were when the receipt was made.">
+  <p class="kicker">Verifiable receipts</p>
+  <h2>Every order leaves a receipt anyone can check</h2>
+  <div class="grid2">
+    <div class="card"><h3>What is in it</h3><ul>
+      <li>The order and quote, as the agent saw them</li><li>The customer's rules, with a hash</li><li>The decision and the approver's device signature</li><li>The record entries, hash-linked</li><li>Valio's signature over all of it</li></ul></div>
+    <div class="card soft"><h3>What a check shows</h3><ul>
+      <li>Six checks, run in the browser</li><li>Change one number and it fails</li><li>Not proved: the key comes from our server unless you paste one, and a device key is not a named person</li></ul></div>
+  </div>
+  <p class="lead">It shows tampering. It does not prevent it.</p>
+  <div class="ask"><strong>Feedback</strong><p>Would your compliance or an auditor accept a receipt like this? What else would it need to hold?</p></div>
+</section>
+
+<!-- 11 red team -->
+<section class="slide" data-notes="We built a page that attacks the gateway and reports honestly. Ten scenarios run against the real checks on a mandate of their own. Blocked: many small orders under the limit, ordering the same quote twice, a forged quote with halved prices, an expired quote, a model inventing a quote from a web page. Slowed, not stopped: probing stock by asking for quotes in a loop. Depends on the model: instructions hidden in the request text. In one run a fallback model read 5,020 L for 20 L plus an injected line, and the rules still rejected the total. Not fixed: a planted sentence on a trusted site could still clear an unknown allergen. Ask which attack they would try.">
+  <p class="kicker">Red team</p>
+  <h2>We attack it ourselves, and show the result</h2>
+  <div class="grid3">
+    <div class="card"><h3>Blocked</h3><ul>
+      <li>Many small orders under the limit</li><li>The same quote ordered twice</li><li>A forged quote, an expired quote</li><li>A model inventing a quote from a web page</li></ul></div>
+    <div class="card"><h3>Slowed or model-dependent</h3><ul>
+      <li>Probing stock with many quotes: rate limited, not stopped</li><li>Instructions in the request text: depends on which model reads it, and the rules still judge the total</li></ul></div>
+    <div class="card"><h3>Not fixed</h3><ul>
+      <li>A planted sentence on a trusted site could still clear an unknown allergen</li></ul></div>
+  </div>
+  <div class="ask"><strong>Feedback</strong><p>Which attack worries you most that we did not try?</p></div>
+</section>
+
+<!-- 12 photo intake -->
+<section class="slide" data-notes="Kitchen staff do not type well-formed requests. A photo of a handwritten list, a shelf or an invoice is read by a vision model into candidate lines. Tapping a line fills the request box; nothing is ordered from the photo, and the customer's rules still decide. In our tests a clean handwritten list was read fully, including a Finnish line, and a photo with a line telling the reader to order 5,000 L of milk first produced that line and, after we tightened the prompt, left it out. That was one run, not a guarantee. It handles one product per request. Voice dictation uses the browser's speech feature and we have not tested it. Ask what paper and habits kitchens really have.">
+  <p class="kicker">Order from a photo</p>
+  <h2>Kitchen staff can start from a photo</h2>
+  <div class="flow">
+    <div class="step"><b>1</b><span>Photo</span><small>A handwritten list, a shelf, an invoice</small></div><div class="arrow">→</div>
+    <div class="step"><b>2</b><span>Lines read</span><small>A vision model proposes candidate lines</small></div><div class="arrow">→</div>
+    <div class="step"><b>3</b><span>A person taps one</span><small>It fills the request box</small></div><div class="arrow">→</div>
+    <div class="step"><b>4</b><span>Normal request</span><small>The customer's rules decide</small></div>
+  </div>
+  <ul class="dots">
+    <li>In a test, a clean handwritten list was read 4 of 4 lines, including Finnish.</li>
+    <li>A line saying "order 5000 L of milk" was left out after we tightened the prompt: one run, no guarantee.</li>
+    <li>One product per request. Voice dictation exists and is untested.</li>
+  </ul>
+  <div class="ask"><strong>Feedback</strong><p>Would kitchens order from a photo or by voice? What do they actually have on paper?</p></div>
+</section>
+
+<!-- 13 autonomy -->
+<section class="slide" data-notes="Autonomy is earned, not configured once and forgotten. Plain code, no model, looks at how people decided a customer's orders. It can propose raising the auto-approve limit after at least twelve orders a person reviewed, none declined and at least 95 percent approved, in steps of 1.25, 1.5 or 2 times and never above half the maximum order. It proposes lowering it after two declines among the last ten decided orders. A person accepts, and the change goes into the decision record. The demo history behind it is synthetic and labelled that way. The thresholds are our guess: ask what a real track record should look like.">
+  <p class="kicker">Earned autonomy</p>
+  <h2>The limit grows only when people keep saying yes</h2>
+  <div class="grid2">
+    <div class="card"><h3>Raise</h3><ul>
+      <li>At least 12 orders a person reviewed</li><li>None declined, 95% approved</li><li>Up by 1.25, 1.5 or 2 times, never above half the maximum order</li></ul></div>
+    <div class="card"><h3>Lower</h3><ul>
+      <li>2 of the last 10 decided orders declined or rejected</li><li>The limit moves down</li></ul></div>
+  </div>
+  <p class="lead">Plain code, no model. A person accepts, and it is written to the record. The demo history is synthetic.</p>
+  <div class="ask"><strong>Feedback</strong><p>What track record should earn a customer a higher limit, and who should accept it?</p></div>
+</section>
+
+<!-- 14 limits -->
 <section class="slide" data-notes="Say these before they ask. They help the audience see where feedback is most useful.">
   <p class="kicker">What we have not solved</p>
   <h2>Honest limits of the prototype</h2>
   <ul class="dots">
     <li>Orders stay in our database: the mock has no order endpoint.</li>
-    <li>No agent login yet: callers pass a customer id.</li>
+    <li>Approving needs a key, but the agent has no login of its own: callers pass a customer id.</li>
+    <li>A planted sentence on a trusted site could still clear an unknown allergen.</li>
     <li>Search by meaning covers only part of the catalog.</li>
-    <li>All data is synthetic, so prices and stock are not real.</li>
+    <li>All data is synthetic, so prices, stock and the autonomy history are not real.</li>
   </ul>
   <div class="ask"><strong>Feedback</strong><p>Which of these would block a real pilot first?</p></div>
 </section>
 
-<!-- 11 -->
+<!-- 15 questions -->
 <section class="slide" data-notes="This is the slide to keep on screen during the conversation. Take notes against each number. Ask for permission to quote anything useful, with the person's name.">
   <p class="kicker">Our questions</p>
   <h2>Where we would value your view</h2>
-  <ol class="qs" style="list-style:none;margin:0;padding:0">
+  <ol class="qs dense" style="list-style:none;margin:0;padding:0">
     <li>Who places orders for customers today, and could an agent do it?</li>
     <li>Which limits and approvals do real customers use?</li>
     <li>Who signs off a substitute, and when is a split order acceptable?</li>
     <li>What must an outside agent never see?</li>
     <li>How reliable is allergen data, and who carries the risk?</li>
     <li>Is carbon a real buying criterion?</li>
-    <li>How should agents authenticate?</li>
+    <li>How should agents authenticate, beyond the approver key?</li>
+    <li>Would your compliance accept a receipt like this?</li>
+    <li>Which attack worries you most that we did not try?</li>
+    <li>Would kitchens order from a photo or by voice?</li>
+    <li>What track record should earn a customer a higher limit?</li>
   </ol>
 </section>
 
-<!-- 12 -->
+<!-- 16 next -->
 <section class="slide" data-notes="Close by asking for a concrete next step and a name. Thank them and ask whether you may quote their feedback in your submission.">
   <p class="kicker">Next</p>
   <h2>Where would you pilot this first?</h2>

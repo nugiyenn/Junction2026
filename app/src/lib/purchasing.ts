@@ -1,6 +1,7 @@
 import 'server-only';
 import { logAudit } from '@/lib/audit';
 import { getProductsByIds } from '@/lib/catalog';
+import { describeProblems } from '@/lib/exposure';
 import { getPool } from '@/lib/db';
 import { HttpError } from '@/lib/http';
 import { evaluateOrder } from '@/lib/policy';
@@ -310,7 +311,7 @@ export async function createQuote(request: QuoteRequest): Promise<Quote> {
   await getPool().query('UPDATE quotes SET signature = $2, signature_key_id = $3 WHERE id = $1', [unsigned.id, signature.value, signature.keyId]);
   const quote: Quote = { ...unsigned, signature };
 
-  const problems = lines.filter((l) => !l.fulfillable).map((l) => `${l.name}: ${l.issues.join(' ')}`);
+  const problems = describeProblems(lines);
   await logAudit({
     actor: 'agent',
     action: 'quote_issued',
@@ -406,7 +407,7 @@ export async function placeOrder(quoteId: string): Promise<Order> {
     throw new HttpError(410, `Quote expired at ${quote.expiresAt}. Request a new quote.`);
   }
   if (!quote.fulfillable) {
-    const problems = quote.lines.filter((l) => !l.fulfillable).map((l) => `${l.name}: ${l.issues.join(' ')}`);
+    const problems = describeProblems(quote.lines);
     throw new HttpError(409, `Quote cannot be ordered as is. ${problems.join(' ')}`);
   }
   // The order commits to the terms Valio signed. A quote edited after it was issued no longer verifies.

@@ -2,7 +2,7 @@
 
 Junction 2026, Valio Aimo challenge.
 
-A gateway that lets a buyer's AI agent order from Valio Aimo safely: within a mandate the buyer set, at a price Valio signed, seeing only what it should, on a record nobody can rewrite.
+A gateway that lets a buyer's AI agent order from Valio Aimo safely: within a mandate the buyer set, at a price Valio signed, seeing only what it should, on a record that shows any edit.
 
 ## How it works
 
@@ -23,14 +23,22 @@ A language model reads the request. Code decides everything else: quantities, pr
 - **Decision record**: every step is logged in plain language and hash-chained.
 - **Live checks**: allergen and label claims can be verified against the web, with quotes and source links.
 
+## Pages
+
+- `/verify`: check an order's signed receipt in the browser.
+- `/red-team`: attack the gateway and see what is blocked and what is not.
+- `/autonomy`: suggested limit changes, earned from people's decisions.
+- Also: buyer agent (with photo order intake), approvals, what agents see, decision record, buyer stats, models.
+
 ## Tech
 
-Aiven Postgres, Oxylabs, Gemma, Featherless, Next.js.
+Aiven Postgres, Valkey, Kafka and ClickHouse, Oxylabs, Gemma, Gemini, Nemotron, Featherless, Next.js.
 
 ## Interfaces
 
 - REST: `app/public/openapi.json`
 - MCP: `POST /api/mcp`. There is no approve tool: approval stays human.
+- Set `APPROVER_KEY` and approving, editing a mandate and accepting a suggestion need `Authorization: Bearer <key>`.
 
 ## Run it
 
@@ -48,6 +56,6 @@ Put `valio_aimo_junction26_product_data.json` in `app/data/` first. Tests: `npm 
 
 - Orders are stored in our database only. Valio's mock has no order endpoint.
 - Semantic search covers only part of the catalog (Gemini free tier).
-- No agent login. Callers pass a mandate id.
+- No per-agent login. Callers pass a mandate id.
 
 All Valio data is synthetic.

@@ -33,6 +33,13 @@ export function stockView(line: QuoteLine): StockView {
 /** "Only 51 ST available." names the quantity, so it is replaced by a sentence that does not. */
 export const sanitizeIssue = (issue: string) => (/^Only [\d.]+ .* available\.$/.test(issue) ? 'Not enough stock for the full quantity.' : issue);
 
+/**
+ * "Name: reason" for every line that cannot be filled, with exact stock removed. Used for the audit summary (which any
+ * reader of /api/audit and a receipt sees) and for the error an agent gets when it orders a quote that cannot be filled.
+ */
+export const describeProblems = (lines: Pick<QuoteLine, 'name' | 'issues' | 'fulfillable'>[]): string[] =>
+  lines.filter((l) => !l.fulfillable).map((l) => `${l.name}: ${l.issues.map(sanitizeIssue).join(' ')}`);
+
 export function exposeLine(line: QuoteLine): ExposedQuoteLine {
   const { availableAmount: _stock, internal: _internal, issues, ...visible } = line;
   void _stock;

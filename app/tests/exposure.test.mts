@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { exposeLine, exposeOrder, exposeProduct, exposeQuote, sanitizeIssue, stockView } from '../src/lib/exposure.ts';
+import { describeProblems, exposeLine, exposeOrder, exposeProduct, exposeQuote, sanitizeIssue, stockView } from '../src/lib/exposure.ts';
 import type { Order, Quote, QuoteLine } from '../src/types/index.ts';
 
 const line = (over: Partial<QuoteLine> = {}): QuoteLine => ({
@@ -104,5 +104,17 @@ describe('catalog and candidate exposure', () => {
     assert.equal(sanitizeIssue('Only 51 ST available.'), 'Not enough stock for the full quantity.');
     assert.equal(sanitizeIssue('Only 0.5 KI available.'), 'Not enough stock for the full quantity.');
     assert.equal(sanitizeIssue('Earliest delivery is 2026-11-20.'), 'Earliest delivery is 2026-11-20.');
+  });
+});
+
+describe('describeProblems', () => {
+  it('lists the lines that cannot be filled and never states exact stock', () => {
+    const lines = [
+      { name: 'Milk', fulfillable: false, issues: ['Only 51 ST available.', 'Earliest delivery is 2026-11-20.'] },
+      { name: 'Oats', fulfillable: true, issues: [] },
+    ];
+    const text = describeProblems(lines).join(' | ');
+    assert.equal(text, 'Milk: Not enough stock for the full quantity. Earliest delivery is 2026-11-20.');
+    assert.ok(!/\b51\b/.test(text));
   });
 });
