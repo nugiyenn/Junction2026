@@ -6,3 +6,6 @@ VALIO.md
 
 # Agent worktrees
 .claude/worktrees/
+
+# Pitch decks, slides and notes stay on disk, out of the repository
+docs/
