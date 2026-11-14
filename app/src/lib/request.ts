@@ -5,13 +5,21 @@ import { getProductsByIds, searchProducts } from '@/lib/catalog';
 import { exposeQuote } from '@/lib/exposure';
 import { HttpError } from '@/lib/http';
 import { runOpenModelStructured } from '@/lib/llm';
+import { runLiveChecks } from '@/lib/live-checks';
 import { applyPreference, buildOffers } from '@/lib/offers';
 import { buildQuoteLine, createQuote, getMandate, previewPolicy } from '@/lib/purchasing';
+import { checkRecalls } from '@/lib/recall';
 import { getAvailability, getPrices } from '@/lib/valio';
-import type { Candidate, Mandate, Offer, Product, ProductSearchResult, PurchaseRequest, RequestResult } from '@/types';
+import { verifyProduct } from '@/lib/verify';
+import type { Candidate, LiveChecks, Mandate, Offer, Product, ProductSearchResult, PurchaseRequest, RequestResult } from '@/types';
 
 /** Valio asks agents to price only a narrowed-down shortlist, never the catalog. */
 const SHORTLIST_SIZE = 5;
+
+/** Live-web checks run on at most this many products, two at a time, within this time budget. */
+const LIVE_CHECK_PRODUCTS = 3;
+const LIVE_CHECK_CONCURRENCY = 2;
+const LIVE_CHECK_BUDGET_MS = 90_000;
 
 const CLAIMS = [
   'FREE_FROM_LACTOSE', 'LOW_LACTOSE', 'FREE_FROM_GLUTEN', 'VEGAN', 'VEGETARIAN', 'FREE_FROM_EGGS',
@@ -219,6 +227,27 @@ function explain(candidates: Candidate[], offers: Offer[], request: PurchaseRequ
 }
 
 /**
+ * Checks the products the offers would order against the live web, so a source that contradicts the catalog or a
+ * recall notice changes the policy decision without anyone pressing a button. Only runs when the request has claims
+ * or the mandate blocks allergens. A check that fails or runs out of time is reported in the result, never fatal.
+ */
+async function liveCheckOffers(
+  offers: Offer[],
+  interpreted: PurchaseRequest,
+  mandate: Mandate
+): Promise<{ liveChecks: LiveChecks | null; notes: string[] }> {
+  if (interpreted.requiredClaims.length === 0 && mandate.blockedAllergens.length === 0) return { liveChecks: null, notes: [] };
+  const ids = [...new Set(offers.flatMap((o) => o.lines.map((l) => l.productId)))].slice(0, LIVE_CHECK_PRODUCTS);
+  if (ids.length === 0) return { liveChecks: null, notes: [] };
+  const products = await getProductsByIds(ids);
+  return runLiveChecks(
+    ids.flatMap((id) => products.get(id) ?? []),
+    { verify: (id) => verifyProduct(id), recalls: (p) => checkRecalls(p) },
+    { budgetMs: LIVE_CHECK_BUDGET_MS, concurrency: LIVE_CHECK_CONCURRENCY }
+  );
+}
+
+/**
  * Plain-language need -> structured need -> shortlist -> live price and availability for the shortlist
  * only -> offers (cheapest, most reliable, lowest CO2; a split or Valio's substitutes when nothing can deliver
  * alone) -> a held quote for the default offer.
@@ -255,9 +284,12 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
       built = buildOffers(candidates, interpreted);
     }
   }
-  const { notes } = built;
   const offers = applyPreference(built.offers, mandate.preferredOffer);
   explain(candidates, offers, interpreted);
+
+  // Before the quote and the policy preview, so the preview reads these fresh checks.
+  const live = await liveCheckOffers(offers, interpreted, mandate);
+  const notes = [...built.notes, ...live.notes];
 
   const best = offers[0] ?? null;
   await logAudit({
@@ -296,5 +328,6 @@ export async function planRequest(mandateId: string, text: string): Promise<Requ
     quote: quote ? exposeQuote(quote) : null,
     policy: quote ? await previewPolicy(quote) : null,
     notes,
+    liveChecks: live.liveChecks,
   };
 }

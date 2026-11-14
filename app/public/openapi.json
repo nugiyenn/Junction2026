@@ -2288,6 +2288,17 @@
               }
             ],
             "description": "What the mandate would decide if the quote were ordered now."
+          },
+          "liveChecks": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveChecks"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the request had no required claims and the mandate blocks no allergens."
           }
         },
         "required": [
@@ -2298,7 +2309,8 @@
           "offers",
           "quote",
           "notes",
-          "policy"
+          "policy",
+          "liveChecks"
         ]
       },
       "VerifiedStatement": {
@@ -2703,6 +2715,173 @@
         "required": [
           "services",
           "cache"
+        ]
+      },
+      "RecallCheck": {
+        "type": "object",
+        "description": "A search of the Finnish Food Authority's (Ruokavirasto) recall notices for one product. A none_found result still carries the query, request ids and sources searched.",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "none_found",
+              "match",
+              "unreadable"
+            ]
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sourceUrl": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string",
+                  "description": "Copied from the notice; code checked it is on the page and names the product or brand."
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sourceUrl",
+                "quote",
+                "text"
+              ]
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "requestId": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "readable": {
+                  "type": "boolean"
+                },
+                "note": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "searchRequestId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "productId",
+          "checkedAt",
+          "status",
+          "matches",
+          "sources",
+          "query",
+          "searchRequestId",
+          "summary"
+        ]
+      },
+      "LiveChecks": {
+        "type": "object",
+        "description": "Live-web checks run automatically before the policy preview, for the products the offers would order.",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "verification": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Verification"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recall": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RecallCheck"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "skipped": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Why a check is missing, e.g. a timeout or an Oxylabs error."
+                }
+              },
+              "required": [
+                "productId",
+                "name",
+                "verification",
+                "recall",
+                "skipped"
+              ]
+            }
+          },
+          "budgetSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "products",
+          "budgetSeconds"
         ]
       }
     }

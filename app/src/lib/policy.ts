@@ -1,4 +1,4 @@
-import type { Mandate, PolicyDecision, PolicyOutcome, Product, Quote, Verification } from '@/types';
+import type { Mandate, PolicyDecision, PolicyOutcome, Product, Quote, RecallCheck, Verification } from '@/types';
 
 const SEVERITY: Record<PolicyOutcome, number> = { auto_approve: 0, needs_approval: 1, reject: 2 };
 
@@ -17,6 +17,7 @@ export const hasNoAllergenData = (p: Product) =>
  * - a stored live-web check: a source saying "contains" a blocked allergen -> reject, "may contain" or any
  *   disagreement with the catalog -> human; a source confirming "free from" every blocked allergen clears
  *   the unverified rule above
+ * - a stored recall check with a match (a Ruokavirasto notice naming the product or brand) -> human, with the notice's URL
  * - delivery reliability below the mandate's minimum -> human
  * - carbon footprint above the mandate's maximum -> human (unknown footprint passes, like unknown reliability)
  * - Terminal stock (unconfirmed) when the mandate requires confirmed stock -> human
@@ -27,7 +28,9 @@ export function evaluateOrder(
   quote: Quote,
   products: Map<string, Product>,
   /** Stored live-web checks, if any. They can clear an unverified product or stop one the catalog got wrong. */
-  verifications: Map<string, Verification> = new Map()
+  verifications: Map<string, Verification> = new Map(),
+  /** Stored recall checks, if any. A match sends the order to a human. */
+  recalls: Map<string, RecallCheck> = new Map()
 ): PolicyDecision {
   let outcome: PolicyOutcome = 'auto_approve';
   const reasons: string[] = [];
@@ -78,6 +81,12 @@ export function evaluateOrder(
       if (check.status === 'contradiction') {
         raise('needs_approval', `A live check of ${line.name} disagrees with the catalog: ${check.contradictions[0]}`);
       }
+    }
+
+    const recall = recalls.get(line.productId);
+    if (recall?.status === 'match' && recall.matches.length > 0) {
+      const m = recall.matches[0];
+      raise('needs_approval', `A recall notice may cover ${line.name}: "${m.quote.replace(/[*\s]+/g, ' ')}" (${m.sourceUrl}).`);
     }
 
     if (

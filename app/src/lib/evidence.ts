@@ -84,3 +84,50 @@ export function compareWithCatalog(
   }
   return [...new Set(out)];
 }
+
+// --- recall notices ---
+
+/**
+ * The search hits that are individual Ruokavirasto recall notices: a page below a `takaisinvedot` section
+ * (not the section's index, the statistics page or the animal-disease page), best-ranked first.
+ */
+export function recallNoticeUrls(hits: { url: string }[], max: number): string[] {
+  const urls = hits
+    .filter((h) => {
+      try {
+        const u = new URL(h.url);
+        if (u.hostname !== 'www.ruokavirasto.fi' && u.hostname !== 'ruokavirasto.fi') return false;
+        const parts = u.pathname.split('/').filter(Boolean);
+        const at = parts.findIndex((p) => p.startsWith('takaisinvedot'));
+        return parts[0] === 'elintarvikkeet' && at >= 0 && at < parts.length - 1;
+      } catch {
+        return false;
+      }
+    })
+    .map((h) => h.url);
+  return [...new Set(urls)].slice(0, max);
+}
+
+/** Ruokavirasto answers a moved or removed notice with a rendered "404" page that still has text on it. */
+export const isNotFoundPage = (page: string) => /\b404\b/.test(page) && /ei valitettavasti löytynyt|page not found|not found/i.test(page.slice(0, 600));
+
+const words = (text: string) => normalize(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * True when a quoted passage names this product: it shows the GTIN, or it names the brand and at least one
+ * other distinctive word of the product name, or (no brand known) two of them. Finnish compounds count: the
+ * word "mousse" in the quote matches "suklaamousse" in the name, and a word's first five letters match its inflections.
+ */
+export function namesProduct(quote: string, product: Pick<Product, 'nameEn' | 'nameFi' | 'brand' | 'gtin'>): boolean {
+  const text = normalize(quote);
+  if (product.gtin && text.includes(product.gtin)) return true;
+
+  const quoted = words(quote);
+  const hit = (w: string) => quoted.some((q) => q === w || (q.length >= 5 && w.includes(q)) || (w.length >= 5 && q.includes(w.slice(0, 5))));
+  const distinctive = (name: string) => words(name).filter((w) => w.length >= 4 && !/^\d+$/.test(w));
+  const brand = product.brand ? words(product.brand).filter((w) => w.length >= 3) : [];
+  const nameWords = [...new Set([...distinctive(product.nameFi), ...distinctive(product.nameEn ?? '')])].filter((w) => !brand.includes(w));
+
+  const others = nameWords.filter(hit).length;
+  return brand.length > 0 ? brand.every((w) => text.includes(w)) && others >= 1 : others >= 2;
+}

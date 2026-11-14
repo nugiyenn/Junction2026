@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { evaluateOrder } from '../src/lib/policy.ts';
-import type { Mandate, Product, Quote, QuoteLine, Verification } from '../src/types/index.ts';
+import type { Mandate, Product, Quote, QuoteLine, RecallCheck, Verification } from '../src/types/index.ts';
 
 const mandate = (over: Partial<Mandate> = {}): Mandate => ({
   id: 'm',
@@ -160,6 +160,35 @@ describe('live web checks', () => {
     const d = run2(product(), check({ status: 'contradiction', contradictions: ['Source says it contains soy; the catalog is free from soy.'] }));
     assert.equal(d.outcome, 'needs_approval');
     assert.match(d.reasons[0], /disagrees with the catalog/);
+  });
+});
+
+describe('recall check', () => {
+  const NOTICE = 'https://www.ruokavirasto.fi/elintarvikkeet/ohjeita-kuluttajille/takaisinvedot-2023-/x/';
+  const recall = (over: Partial<RecallCheck> = {}): RecallCheck => ({
+    productId: 'p1',
+    checkedAt: '',
+    status: 'match',
+    matches: [{ sourceUrl: NOTICE, quote: 'Valio Oy  poistaa\nmousse-tuotteita', text: '' }],
+    sources: [],
+    query: '',
+    searchRequestId: null,
+    summary: '',
+    ...over,
+  });
+  const run3 = (r: RecallCheck | null) =>
+    evaluateOrder(mandate(), { total: 100, lines: [line()] } as Quote, new Map([['p1', product()]]), new Map(), r ? new Map([['p1', r]]) : new Map());
+
+  it('a matching recall notice needs a human and names the notice', () => {
+    const d = run3(recall());
+    assert.equal(d.outcome, 'needs_approval');
+    assert.match(d.reasons[0], /Valio Oy poistaa mousse-tuotteita/);
+    assert.ok(d.reasons[0].includes(NOTICE));
+  });
+  it('none found and unreadable do not change the decision', () => {
+    assert.equal(run3(recall({ status: 'none_found', matches: [] })).outcome, 'auto_approve');
+    assert.equal(run3(recall({ status: 'unreadable', matches: [] })).outcome, 'auto_approve');
+    assert.equal(run3(null).outcome, 'auto_approve');
   });
 });
 

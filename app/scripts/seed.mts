@@ -194,6 +194,17 @@ await pool.query(`
     summary text NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS recall_checks (
+    product_id text PRIMARY KEY REFERENCES products(id),
+    checked_at timestamptz NOT NULL DEFAULT now(),
+    status text NOT NULL,
+    matches jsonb NOT NULL,
+    sources jsonb NOT NULL,
+    query text NOT NULL,
+    search_request_id text,
+    summary text NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS audit_events (
     id bigserial PRIMARY KEY,
     at timestamptz NOT NULL DEFAULT now(),

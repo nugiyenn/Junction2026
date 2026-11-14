@@ -358,6 +358,8 @@ export interface RequestResult {
   policy: PolicyDecision | null;
   /** Plain-language notes on exceptions: a split, a substitution, a shortfall. */
   notes: string[];
+  /** Automatic live-web checks run before the policy preview. Null when the request had no claims or blocked allergens. */
+  liveChecks: LiveChecks | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -413,6 +415,7 @@ export type AuditActor = 'agent' | 'human' | 'system';
 
 export type AuditAction =
   | 'product_verified'
+  | 'recall_checked'
   | 'mandate_changed'
   | 'request_interpreted'
   | 'catalog_searched'
@@ -460,4 +463,48 @@ export interface HealthReport {
   services: ServiceHealth[];
   /** Valio API calls saved (hits) and made (misses) by the Valkey cache. Null when Valkey is off or failing. */
   cache: { hits: number; misses: number } | null;
+}
+
+// --- live-web guardrail ---
+
+export interface RecallMatch {
+  sourceUrl: string;
+  /** A passage copied from the notice. Code checked it is on the page and names the product or brand. */
+  quote: string;
+  /** The model's one-line reason for the recall. */
+  text: string;
+}
+
+export interface RecallCheck {
+  productId: string;
+  checkedAt: string;
+  /**
+   * none_found: Ruokavirasto's recall notices were searched and none concerning this product was found
+   * (`query`, `searchRequestId` and `sources` are the proof). match: a notice names the product or brand.
+   * unreadable: notices were found but none could be read.
+   */
+  status: 'none_found' | 'match' | 'unreadable';
+  matches: RecallMatch[];
+  /** Every result of the search: read notices carry a request id, the rest say why they were not read. */
+  sources: VerificationSource[];
+  query: string;
+  searchRequestId: string | null;
+  summary: string;
+}
+
+export interface LiveCheckedProduct {
+  productId: string;
+  name: string;
+  /** Null when the allergen and label check did not run or failed; see `skipped`. */
+  verification: Verification | null;
+  /** Null when the recall check did not run or failed; see `skipped`. */
+  recall: RecallCheck | null;
+  /** Why a check is missing, one entry per check: "Live check skipped for X: reason". */
+  skipped: string[];
+}
+
+export interface LiveChecks {
+  products: LiveCheckedProduct[];
+  /** The time budget the checks ran in, in seconds. */
+  budgetSeconds: number;
 }
