@@ -239,6 +239,149 @@
         }
       }
     },
+    "/api/recipe": {
+      "post": {
+        "summary": "Turn a pasted recipe or shopping list into matched products",
+        "description": "Code reads the text: amount, unit and name per line, Finnish decimal comma, a Valio product link as a matching hint. Only when the parser reads nothing, or leaves more unread than read (prose such as \"I need 20 kg of mozzarella and 10 kg of tomato sauce\"), a model (Gemini, 20 s limit) splits the text into lines, marked `readBy: model`; if it fails the answer is a plain 422. Matching, prices and pack maths are code either way. Each line is matched against the catalog, packs are sized from Valio's live price, and the fulfilment checks of a quote run on the proposal. Nothing is quoted or ordered: send the lines the buyer keeps to POST /api/quotes. At most 40 lines; the match step is capped at 60 s and a line that cannot be priced in time is reported as `unpriced`. Only what a quote shows is returned: no list price, discount, supplier, category or exact stock.",
+        "tags": [
+          "Request"
+        ],
+        "responses": {
+          "200": {
+            "description": "One row per line, the lines that could not be read, and the delivery date used",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeResult"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, for example text over 4000 characters or a portions factor out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, for example an unknown mandate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No lines could be read (or the text could not be read as a list), more than 40 lines, or a delivery date in the past",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached (10 per 60 s per mandate). Wait `Retry-After` seconds. Limiting is off when the gateway has no Valkey.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 4000,
+                    "description": "A recipe or shopping list, one ingredient per line or comma separated, e.g. \"20 kg mozzarella, 10 kg tomato sauce, pizza dough 50 pcs\". Units kg g l dl cl ml kpl pcs pc st."
+                  },
+                  "multiplier": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 1000,
+                    "default": 1,
+                    "description": "Portions factor: every amount is multiplied by it."
+                  },
+                  "deliveryDate": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "YYYY-MM-DD. Default: a weekday named in the text (\"by Friday\"), otherwise the first weekday at least 3 days ahead."
+                  }
+                },
+                "required": [
+                  "mandateId",
+                  "text"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quotes": {
       "post": {
         "summary": "Create a fixed-price quote",
@@ -763,7 +906,7 @@
     "/api/orders/{id}/decision": {
       "post": {
         "summary": "Human sign-off",
-        "description": "Approve or decline an order in pending_approval. Not exposed over MCP: approval stays human.",
+        "description": "Approve or decline an order in pending_approval. Not exposed over MCP: approval stays human. Approving can also accept a flagged order as the buyer's new normal.",
         "tags": [
           "Order"
         ],
@@ -862,6 +1005,10 @@
                   "note": {
                     "type": "string"
                   },
+                  "acceptAsNormal": {
+                    "type": "boolean",
+                    "description": "Optional, approve only, and only for an order flagged as unusual (400 otherwise). Records that a person accepted this order as the buyer's new normal, so it counts in future usual-order baselines. A flagged order that is approved without this stays out of the baseline."
+                  },
                   "signature": {
                     "type": "object",
                     "description": "Optional. The decision signed by the approver's device key; refused with 400 if it does not match this decision or does not verify. Without it the decision is recorded as not signed.",
@@ -949,6 +1096,73 @@
         "security": [
           {
             "approverKey": []
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}/deviation": {
+      "get": {
+        "summary": "Unusual-order report (approver only)",
+        "description": "How the order compared with the buyer's own recent orders: what is usual (with the evidence) and what differs. Built from numbers the agent must not see, so it needs the approver key when APPROVER_KEY is set. The agent only gets \"Needs approval: differs from this buyer's usual orders.\" in the order's policyReasons. 404 when no check was recorded for the order.",
+        "tags": [
+          "Order"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {
+                      "type": "string"
+                    },
+                    "report": {
+                      "$ref": "#/components/schemas/DeviationReport"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The approver key is missing or wrong",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Order id."
           }
         ]
       }
@@ -3802,6 +4016,313 @@
           "decision",
           "audit",
           "signature"
+        ]
+      },
+      "RecipeProduct": {
+        "type": "object",
+        "description": "A product proposed for a line, with only what a buyer sees in a quote.",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gtin": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salesUnit": {
+            "type": "string"
+          },
+          "packSize": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Kilograms or litres in one sales unit; 1 when the line is counted in pieces."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "packUnit": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "KG",
+                  "L",
+                  "unit"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantity": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Sales units that cover the line, rounded up to the lot size."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lineTotal": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fulfillable": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stock": {
+            "$ref": "#/components/schemas/StockView"
+          }
+        }
+      },
+      "RecipeLineMatch": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "raw": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "baseAmount": {
+            "type": "number",
+            "description": "As read from the text."
+          },
+          "amount": {
+            "type": "number",
+            "description": "After the portions factor; the amount the packs were sized for."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "L",
+              "unit"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "matched",
+              "weak",
+              "not_found",
+              "unpriced"
+            ],
+            "description": "weak: the product fits only partly, check it. not_found: nothing in Valio's range fits. unpriced: no price from Valio, or not in time."
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecipeProduct"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/RecipeProduct"
+            }
+          },
+          "readBy": {
+            "type": "string",
+            "enum": [
+              "code",
+              "model"
+            ],
+            "description": "Who read the line out of the text. `model`: the parser could not read the text (prose such as a sentence), so a model split it into lines; check each such line."
+          },
+          "notOrdered": {
+            "type": "boolean",
+            "description": "True for water and ice: not a miss, just not something to order. The status stays not_found."
+          }
+        }
+      },
+      "RecipeResult": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeLineMatch"
+            }
+          },
+          "readByModel": {
+            "type": "boolean",
+            "description": "True when a model, not the parser, read at least one line."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Text that could not be read as an amount with a name."
+          },
+          "deliveryDate": {
+            "type": "string"
+          },
+          "multiplier": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DeviationReport": {
+        "type": "object",
+        "description": "The unusual-order check for one order. Approver only.",
+        "properties": {
+          "basedOn": {
+            "type": "integer",
+            "description": "Past orders of the same buyer the baseline is built from."
+          },
+          "hasBaseline": {
+            "type": "boolean",
+            "description": "False when the buyer has no standing order yet: nothing is flagged."
+          },
+          "differing": {
+            "type": "integer",
+            "description": "Findings that differ and need a person. A product swap and its attribute rows are one finding."
+          },
+          "total": {
+            "type": "integer",
+            "description": "All findings."
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One plain sentence per differing finding."
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "For example Product, Fat per 100 g, Quantity, Delivery weekday, Order total."
+                },
+                "usual": {
+                  "type": "string",
+                  "description": "What the buyer usually orders, with its evidence, for example \"1,000 L (800 to 1,200)\"."
+                },
+                "thisOrder": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "usual",
+                    "review",
+                    "info"
+                  ],
+                  "description": "review sends the order to a person; info is shown but never a reason alone."
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "The result cell, for example \"+4.2 g\" or \"+14%\"."
+                },
+                "group": {
+                  "type": "string",
+                  "description": "Checks with the same group count as one finding."
+                },
+                "line": {
+                  "type": "string",
+                  "description": "Product name, to tell the lines of an order apart."
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "usual",
+                "thisOrder",
+                "result"
+              ]
+            }
+          }
+        },
+        "required": [
+          "basedOn",
+          "hasBaseline",
+          "checks",
+          "differing",
+          "total",
+          "findings"
         ]
       }
     },

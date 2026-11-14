@@ -9,7 +9,14 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-heading: var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-barlow), "Arial Narrow", system-ui, sans-serif;
+  --color-lime: var(--lime);
+  --color-lime-dark: var(--lime-dark);
+  --color-petrol-dark: var(--petrol-dark);
+  --color-petrol-30: var(--petrol-30);
+  --color-blueberry: var(--blueberry);
+  --color-blueberry-soft: var(--blueberry-soft);
+  --color-brand-purple: var(--brand-purple);
   --color-lime: var(--lime);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
@@ -57,9 +64,11 @@
 }
 
 :root {
-  /* Valio Aimo's own colours, read from valioaimo.fi: petrol #005670 (links, logo), lime #c0e021 (highlights),
-     ink #23282d (body text), grey #555759. Status colours stay semantic (green, amber, red). */
-  --background: #f5f6f7;
+  /* Valio Aimo's own colours, read from the CSS variables on valioaimo.fi (see docs/STYLE_GUIDE.md):
+     petrol #005670 (headings, links, nav, footer), lime #c0e021 (buttons), petrol-15 #d9e6ea, light blue #f2f7f8,
+     blueberry #c7b2de / #eee8f5 / #8863b0, ink #23282d (body text), grey #555759.
+     Status colours stay semantic (green, amber, red) so they stay readable. */
+  --background: #f2f7f8;
   --foreground: #23282d;
   --card: #ffffff;
   --card-foreground: #23282d;
@@ -67,38 +76,45 @@
   --popover-foreground: #23282d;
   --primary: #005670;
   --primary-foreground: #ffffff;
-  --secondary: #e5eef1;
+  --secondary: #d9e6ea;
   --secondary-foreground: #005670;
-  --muted: #eef1f3;
+  --muted: #e9f0f3;
   --muted-foreground: #555759;
-  --accent: #e5eef1;
+  --accent: #d9e6ea;
   --accent-foreground: #005670;
   --destructive: #9b2226;
-  --border: #dde2e5;
-  --input: #cdd4d8;
+  --border: #d9e6ea;
+  --input: #b2ccd4;
   --ring: #005670;
+  --petrol-dark: #003747;
+  --petrol-30: #b2ccd4;
+  --lime-dark: #abc80b;
+  --blueberry: #c7b2de;
+  --blueberry-soft: #eee8f5;
+  --brand-purple: #8863b0;
   --chart-1: #005670;
   --chart-2: #c0e021;
   --chart-3: #b7791f;
   --chart-4: #4b3b9a;
   --chart-5: #555759;
-  --radius: 0.75rem;
+  /* Aimo is nearly square: buttons 0, inputs and images 3px, outline buttons 4px, large block 10px. */
+  --radius: 0.25rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #23282d;
   --sidebar-primary: #005670;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e5eef1;
+  --sidebar-accent: #d9e6ea;
   --sidebar-accent-foreground: #005670;
-  --sidebar-border: #dde2e5;
+  --sidebar-border: #d9e6ea;
   --sidebar-ring: #005670;
   --lime: #c0e021;
   --ok: #17653a;
-  --ok-soft: #e6f4ea;
+  --ok-soft: #ecf5c5;
   --warn: #7a4e00;
   --warn-soft: #fff3d6;
   --bad-soft: #fce9e9;
   --sub: #4b3b9a;
-  --sub-soft: #eeeafb;
+  --sub-soft: #eee8f5;
 }
 
 .dark {
@@ -148,6 +164,6 @@
   h1,
   h2,
   h3 {
-    @apply font-heading tracking-tight;
+    @apply font-heading text-primary;
   }
 }

@@ -94,10 +94,13 @@ const POOL = 50;
 export async function searchProducts(
   query: string,
   filters: ProductFilters = {},
-  limit = 10
+  limit = 10,
+  /** Extra keyword terms matched as word prefixes (`term:*`), for languages with endings and compounds. The meaning search ignores them. */
+  prefixTerms: string[] = []
 ): Promise<{ products: ProductSearchResult[]; semantic: boolean; excludedByAllergens: number }> {
   const words = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   if (words.length === 0) return { products: [], semantic: false, excludedByAllergens: 0 };
+  const tsQuery = [...words, ...prefixTerms.flatMap((t) => t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map((t) => `${t}:*`)].join(' | ');
 
   // Keyword: any word may match, ranked by how well.
   const keywordFilter = filterSql(filters, 3);
@@ -107,7 +110,7 @@ export async function searchProducts(
      ${keywordFilter.sql.map((s) => `AND ${s}`).join(' ')}
      ORDER BY ts_rank(to_tsvector('simple', embedding_text), to_tsquery('simple', $1)) DESC, id
      LIMIT $2`,
-    [words.join(' | '), POOL, ...keywordFilter.params]
+    [tsQuery, POOL, ...keywordFilter.params]
   );
 
   // How many keyword matches the allergen filter removed, so the buyer can see what the mandate hid.
@@ -120,7 +123,7 @@ export async function searchProducts(
        WHERE to_tsvector('simple', embedding_text) @@ to_tsquery('simple', $1)
        ${rest.sql.map((s) => `AND ${s}`).join(' ')}
        AND (allergens_contain ?| ${allergenParam}::text[] OR allergens_may_contain ?| ${allergenParam}::text[])`,
-      [words.join(' | '), ...rest.params, filters.excludeAllergens]
+      [tsQuery, ...rest.params, filters.excludeAllergens]
     );
     excludedByAllergens = rows[0].n;
   }
@@ -166,4 +169,21 @@ export async function searchProducts(
 export async function getProductsByIds(ids: string[]): Promise<Map<string, Product>> {
   const { rows } = await getPool().query<ProductRow>('SELECT * FROM products WHERE id = ANY($1::text[])', [ids]);
   return new Map(rows.map((r) => [r.id, toProduct(r)]));
+}
+
+/** Every word of the catalog's names and descriptions (lowercase, four letters or more), kept for an hour. For splitting Finnish compounds. */
+let vocabulary: { at: number; words: Promise<Set<string>> } | null = null;
+export function catalogVocabulary(): Promise<Set<string>> {
+  if (!vocabulary || Date.now() - vocabulary.at > 3_600_000) {
+    const words = getPool()
+      .query<{ word: string }>(
+        `SELECT word FROM ts_stat($$SELECT to_tsvector('simple', embedding_text) FROM products$$) WHERE length(word) >= 4 AND word !~ '[0-9]'`
+      )
+      .then(({ rows }) => new Set(rows.map((r) => r.word)));
+    words.catch(() => {
+      vocabulary = null;
+    });
+    vocabulary = { at: Date.now(), words };
+  }
+  return vocabulary.words;
 }

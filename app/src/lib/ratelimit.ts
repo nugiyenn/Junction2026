@@ -16,6 +16,8 @@ export const LIMITS = {
   requests: { limit: fromEnv('RATE_LIMIT_REQUESTS_PER_MIN', 20), windowSeconds: 60 },
   quotes: { limit: fromEnv('RATE_LIMIT_QUOTES_PER_MIN', 60), windowSeconds: 60 },
   orders: { limit: fromEnv('RATE_LIMIT_ORDERS_PER_MIN', 30), windowSeconds: 60 },
+  // A recipe order searches the catalog and asks Valio for prices for every line: far fewer per minute than quotes.
+  recipe: { limit: fromEnv('RATE_LIMIT_RECIPE_PER_MIN', 10), windowSeconds: 60 },
   // Live web checks spend Oxylabs and model quota and are not tied to a mandate, so one shared counter.
   verify: { limit: fromEnv('RATE_LIMIT_VERIFY_PER_MIN', 12), windowSeconds: 60 },
 } as const;

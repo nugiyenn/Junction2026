@@ -9,6 +9,7 @@ import { compareInterpretations, helsinkiToday, interpretInstructions, PurchaseR
 import { runExtractionModelStructured, runNamedModelStructured, runOpenModelStructured } from '@/lib/llm';
 import { runLiveChecks } from '@/lib/live-checks';
 import { applyPreference, buildOffers } from '@/lib/offers';
+import { packQuantity } from '@/lib/packs';
 import { buildQuoteLine, createQuote, getMandate, previewPolicy } from '@/lib/purchasing';
 import { checkRecalls } from '@/lib/recall';
 import { getAvailability, getPrices } from '@/lib/valio';
@@ -25,7 +26,7 @@ const LIVE_CHECK_BUDGET_MS = 90_000;
 
 /** The language model only extracts the need. Everything after this is deterministic code. */
 /** The second reader. In the evaluation it answered all 12 requests correctly in about 3.4 s (slowest 5.8 s). */
-const SECOND_READER = { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' } as const;
+export const SECOND_READER = { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' } as const;
 const SECOND_READER_TIMEOUT_MS = 15_000;
 
 /** Time budgets per step, so the whole request stays inside the route's 300 s even when a provider is slow or down. */
@@ -135,9 +136,6 @@ Return {"ids": [...]}, best match first. Use only ids from the input. Return {"i
   return { matches, model };
 }
 
-/** Rounds L or KG per sales unit to 2 significant figures: 19.94 L becomes 20 L, 0.497 L becomes 0.5 L. */
-const roundPackSize = (n: number) => Number(n.toPrecision(2));
-
 type Unranked = Omit<Candidate, 'rank'>;
 
 /**
@@ -159,24 +157,7 @@ async function priceCandidates(
   return products.map((product): Unranked => {
     const price = prices.products.find((p) => p.productId === product.id);
     const avail = availability.products.find((p) => p.productId === product.id);
-    const reasons: string[] = [];
-
-    let amountPerUnit: number | null = null;
-    if (request.amountUnit === 'unit') {
-      amountPerUnit = 1;
-    } else if (price?.comparisonUnit !== request.amountUnit) {
-      reasons.push(`Priced per ${price?.comparisonUnit ?? 'unknown unit'}, not per ${request.amountUnit}.`);
-    } else if (price.catalogPrice && price.comparisonPrice && price.comparisonPrice.value > 0) {
-      amountPerUnit = roundPackSize(price.catalogPrice.value / price.comparisonPrice.value);
-    } else {
-      reasons.push('No price per litre or kilo to size the order with.');
-    }
-
-    let quantity: number | null = null;
-    if (amountPerUnit !== null) {
-      quantity = Math.ceil(request.amount / amountPerUnit);
-      if (product.allowedLotSize > 1) quantity = Math.ceil(quantity / product.allowedLotSize) * product.allowedLotSize;
-    }
+    const { amountPerUnit, quantity, reasons } = packQuantity(price, request.amount, request.amountUnit, product.allowedLotSize);
 
     const line = buildQuoteLine(product, quantity ?? 1, request.deliveryDate, price, avail, now);
     if (quantity !== null) reasons.push(...line.issues);

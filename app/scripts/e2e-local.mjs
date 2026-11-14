@@ -104,17 +104,147 @@ async function main() {
     }
   }
 
+  // --- Recipe order: pasted list -> matched lines (no model unless the text is prose)
+  console.log('\nRecipe order');
+  const STATUSES = ['matched', 'weak', 'not_found', 'unpriced'];
+  const leaky = (text) => /"vendorName"|"listPrice"|"discountPct"|"availableAmount"|"internal"|"category"/.test(text);
+  const pizzeria = await http('POST', '/api/recipe', { mandateId: 'demo-hotel', text: '20 kg mozzarella\n10 kg tomato sauce\npizza dough 50 pcs' }, {}, 2 * MINUTE);
+  const matchedLines = (pizzeria.json?.lines ?? []).filter((l) => l.status === 'matched');
+  log(pizzeria.status === 200 && matchedLines.length >= 2, 'recipe: 3-line pizzeria list, at least 2 lines matched', `HTTP ${pizzeria.status}, ${matchedLines.length} matched`);
+  log(!leaky(pizzeria.text), 'recipe: response hides supplier, list price, discount and exact stock');
+  log((pizzeria.json?.lines ?? []).every((l) => l.readBy === 'code'), 'recipe: a plain list is read by code, not a model');
+  const t0 = Date.now();
+  const recipe15 = [
+    '0,323 kg', '[Oddlygood® Cooking Oat tuotetta](https://www.valioaimo.fi/ammattilaistuotteet/oddlygood-cooking-oat-original/1-l-tolkki/)',
+    '0,277 kg Oddlygood® Dream Fraiche tuotetta', '1,062 kg kylmää vettä', '0,037 kg punaviinietikkaa', '0,016 kg valkosipulimurskaa',
+    '0,139 kg tomaattipyreetä', '0,021 kg kasvisliemijauhetta', '0,002 kg suolaa', '0,001 kg jauhettua mustapippuria', '0,003 kg kuivattua rakuunaa',
+    '0,009 kg sokeria', '0,021 kg kylmätärkkelystä', '0,877 kg', '[Valio Gold&Green® suikaleita original](https://www.valioaimo.fi/ammattilaistuotteet/valio-goldgreen-suikale-original/)',
+    '0,277 kg fenkolia', '0,111 kg pakastesipulikuutioita',
+  ].join('\n');
+  const full = await http('POST', '/api/recipe', { mandateId: 'demo-hotel', text: recipe15 }, {}, 2 * MINUTE);
+  const took = (Date.now() - t0) / 1000;
+  const fullLines = full.json?.lines ?? [];
+  log(full.status === 200 && fullLines.length === 15 && took < 60, 'recipe: 15-line recipe answered within 60 s', `HTTP ${full.status}, ${fullLines.length} lines, ${took.toFixed(1)} s`);
+  log(fullLines.every((l) => STATUSES.includes(l.status)), 'recipe: every line has one of the four statuses', STATUSES.map((st) => `${st} ${fullLines.filter((l) => l.status === st).length}`).join(', '));
+  log(!leaky(full.text), 'recipe: the 15-line response hides supplier, list price, discount and exact stock');
+  const long = await http('POST', '/api/recipe', { mandateId: 'demo-hotel', text: '2 kg flour\n'.repeat(500) }, {}, 30_000);
+  log(long.status === 400 && /4000/.test(long.json?.error ?? '') && !/[{}\[\]]|zod/i.test(long.json?.error ?? ''), 'recipe: 5000 characters get a plain 400', long.json?.error?.slice(0, 80));
+  const garbage = await http('POST', '/api/recipe', { mandateId: 'demo-hotel', text: 'asdf qwer ;;; ???' }, {}, 30_000);
+  log(garbage.status === 422 && !/[{}\[\]]|zod/i.test(garbage.json?.error ?? ''), 'recipe: garbage text gets a plain 422', garbage.json?.error?.slice(0, 80));
+  const prose = await http('POST', '/api/recipe', { mandateId: 'demo-hotel', text: 'I need 20 kg of mozzarella and 10 kg of tomato sauce for friday' }, {}, 2 * MINUTE);
+  const proseOk = prose.status === 200 && prose.json?.lines?.length === 2 && prose.json.lines.every((l) => l.readBy === 'model') && prose.json.readByModel === true;
+  const proseDown = prose.status === 422 && /^Could not read this as a list/.test(prose.json?.error ?? '');
+  log(proseOk || proseDown, 'recipe: a sentence is read by a model (2 lines), or the model is down and the message is plain', proseOk ? `2 lines, delivery ${prose.json.deliveryDate}` : `HTTP ${prose.status} ${prose.json?.error}`);
+  log(prose.status < 500 && prose.json !== null, 'recipe: a sentence never gives a server error or raw text');
+  // One quote from the matched lines, then the normal order flow: a big total waits for a person.
+  const quotable = fullLines.filter((l) => l.status === 'matched' && l.proposal?.fulfillable && l.proposal.quantity);
+  if (quotable.length >= 2) {
+    const q = await http('POST', '/api/quotes', { mandateId: 'demo-hotel', deliveryDate: full.json.deliveryDate, lines: quotable.map((l) => ({ productId: l.proposal.productId, quantity: l.proposal.quantity })) }, {}, 60_000);
+    log(q.status === 201 && q.json?.quote?.lines?.length === quotable.length, 'recipe: the matched lines become one quote', `HTTP ${q.status}, ${q.json?.quote?.lines?.length} lines, €${q.json?.quote?.total}`);
+    log(!!q.json?.policy?.outcome, 'recipe: the quote carries the mandate decision', q.json?.policy?.outcome);
+  }
+
   // --- New surfaces
   console.log('\nNew features');
   const stats = await http('GET', '/api/stats?mandateId=demo-hotel', undefined, {}, 60_000);
   log(stats.status === 200 && !!stats.json?.source, 'buyer stats answer', `source: ${stats.json?.source}`);
   const catalog = await http('GET', '/api/products/search?q=oat%20drink&limit=3', undefined, {}, 60_000);
   log(catalog.status === 200 && !/"vendorName"|"category"/.test(catalog.text), 'catalog search hides supplier and internal category');
-  for (const page of ['/', '/approvals', '/exposure', '/audit', '/stats', '/models', '/verify']) {
+  for (const page of ['/', '/recipe', '/approvals', '/exposure', '/audit', '/stats', '/models', '/verify']) {
     const res = await fetch(BASE + page, { signal: AbortSignal.timeout(60_000) });
     log(res.status === 200, `page ${page} loads`, `HTTP ${res.status}`);
   }
   log(typeof health.json?.approverKeyRequired === 'boolean', 'health reports whether the approver key is required', String(health.json?.approverKeyRequired));
+
+  // --- Unusual order check: the same weekly milk order, then a swap, 10x and a holiday week (no model involved)
+  console.log('\nUnusual order check (hotel, weekly milk)');
+  const GENERIC = "Needs approval: differs from this buyer's usual orders.";
+  const mondayAfter = (() => { const d = new Date(); d.setDate(d.getDate() + (((8 - d.getDay()) % 7) || 7)); return d.toISOString().slice(0, 10); })();
+  // As an agent would: a quote by product id, then the order with an Idempotency-Key.
+  const placeHotel = async (productId, quantity) => {
+    const q = await http('POST', '/api/quotes', { mandateId: 'demo-hotel', deliveryDate: mondayAfter, lines: [{ productId, quantity }] }, {}, 60_000);
+    if (q.status !== 201) return { q, order: null };
+    const o = await http('POST', '/api/orders', { quoteId: q.json.quote.id }, { 'Idempotency-Key': `e2e-unusual-${productId}-${quantity}-${Date.now()}` }, 60_000);
+    return { q, o, order: o.json?.order };
+  };
+  const SKIMMED = '469477', WHOLE = '464073';
+  // Other milks to swap to. A product that an earlier run accepted as the new normal is no longer flagged, so take the first one that still is (Reset demo data starts over).
+  const SWAPS = ['469549', '464201', '464398', '464306', '464401'];
+  const agentLeak = (r) => /Fat per 100 g|instead of the usual|basedOn|"usual"|usual[^"]{0,40}\d/i.test(JSON.stringify([r.q?.json, r.o?.json]));
+  const report = async (orderId) => (await http('GET', `/api/orders/${orderId}/deviation`, undefined, {}, 30_000));
+
+  const hist = await http('GET', '/api/stats?mandateId=demo-hotel', undefined, {}, 60_000);
+  const usualA = await placeHotel(SKIMMED, 1000);
+  log(usualA.order?.id !== undefined, 'scenario (a) usual weekly milk: order placed', usualA.order?.status ?? usualA.q.json?.error);
+  if (usualA.order) {
+    const repA = (await report(usualA.order.id)).json?.report;
+    log(repA?.hasBaseline === true && repA.basedOn >= 4, 'seed present: demo-hotel has a standing baseline', `based on ${repA?.basedOn} orders`);
+    log(repA?.differing === 0 && !usualA.order.policyReasons.includes(GENERIC), '(a) 1,000 L skimmed is not flagged', `${repA?.differing} of ${repA?.total} differ; ${usualA.order.status}`);
+    const held = usualA.order.status === 'pending_approval' ? usualA.order.policyReasons.join(' | ').slice(0, 90) : 'auto-approved';
+    log(['confirmed', 'pending_approval'].includes(usualA.order.status), '(a) held or confirmed only by the total limit or the rolling 24 h rule, not by this check', held);
+  }
+  log(hist.status === 200, 'stats still answer with the standing orders in place', `source: ${hist.json?.source}`);
+
+  const swapped = await placeHotel(WHOLE, 1000);
+  const orderB = swapped.order;
+  log(orderB?.status === 'pending_approval' && orderB.policyReasons.includes(GENERIC), '(b) whole milk instead of skimmed waits for approval, flagged', orderB?.status ?? swapped.q.json?.error);
+  log(swapped.q.json?.policy?.reasons?.includes(GENERIC) === true, '(b) the quote preview says the same generic sentence');
+  log(!agentLeak(swapped), '(b) agent view is generic: no baseline, no attributes, no numbers');
+  if (orderB) {
+    const rep = await report(orderB.id);
+    const fat = rep.json?.report?.checks?.find((c) => c.label === 'Fat per 100 g');
+    log(rep.status === 200 && rep.json?.report?.differing === 1, '(b) approver endpoint: one finding differs', `${rep.json?.report?.differing} of ${rep.json?.report?.total}`);
+    log(fat?.result === 'review' && /^\+3\.5 g$/.test(fat.detail ?? '') && fat.usual === '0 g', '(b) approver view shows the fat difference', fat ? `${fat.usual} vs ${fat.thisOrder}, ${fat.detail}` : 'no fat row');
+    log((rep.json?.report?.checks ?? []).some((c) => c.label === 'Delivery weekday' && /^Monday, \d+ of \d+$/.test(c.usual)), '(b) the usual column carries its evidence', (rep.json?.report?.checks ?? []).find((c) => c.label === 'Quantity')?.usual);
+    const audit = await http('GET', '/api/audit?mandateId=demo-hotel', undefined, {}, 30_000);
+    log(audit.status === 200 && !/deviation_report|Fat per 100 g|instead of the usual/.test(audit.text), 'the open audit feed never carries the report');
+    if (health.json?.approverKeyRequired === true) {
+      const open = await http('GET', `/api/orders/${orderB.id}/deviation`, undefined, { Authorization: 'Bearer wrong' }, 30_000);
+      log(open.status === 401, 'the report endpoint needs the approver key', `HTTP ${open.status}`);
+    } else {
+      log(true, 'the report endpoint is open because no approver key is configured here (same as the other approver routes)');
+    }
+    const bad = await http('POST', `/api/orders/${orderB.id}/decision`, { decision: 'decline', decidedBy: 'e2e script', acceptAsNormal: true }, {}, 30_000);
+    log(bad.status === 400, 'accepting a decline as the new normal is refused', `HTTP ${bad.status}`);
+    const declined = await http('POST', `/api/orders/${orderB.id}/decision`, { decision: 'decline', decidedBy: 'e2e script', note: 'automated check' }, {}, 30_000);
+    log(declined.status === 200, '(b) the flagged order is declined to leave the inbox', `HTTP ${declined.status}`);
+  }
+
+  const ten = await placeHotel(SKIMMED, 10000);
+  log(ten.q.json?.policy?.reasons?.includes(GENERIC) && ten.q.json.policy.reasons.some((x) => /maximum/.test(x)), '(c) 10x quantity is flagged and also meets the existing maximum rule', ten.q.json?.policy?.outcome);
+  if (ten.order) {
+    const rep = (await report(ten.order.id)).json?.report;
+    log(rep?.checks?.some((c) => c.label === 'Quantity' && c.result === 'review'), '(c) approver view: the quantity differs', rep?.checks?.find((c) => c.label === 'Quantity')?.detail);
+    log(ten.order.status === 'rejected' && !agentLeak(ten), '(c) the existing maximum rejects it; the check never rejects by itself', ten.order.status);
+  }
+
+  const holiday = await placeHotel(SKIMMED, 1200);
+  if (holiday.order) {
+    const rep = (await report(holiday.order.id)).json?.report;
+    log(rep?.differing === 0 && !holiday.order.policyReasons.includes(GENERIC), '(d) a +20% holiday week is not flagged', `${rep?.differing} of ${rep?.total} differ; ${holiday.order.status}`);
+  } else log(false, '(d) holiday order placed', holiday.q.json?.error);
+
+  // Accepting a flagged order as the new normal changes the next evaluation. Another milk than the demo's whole milk is used, so that scenario stays flagged.
+  let semi = { order: null, q: { json: { error: 'every swap candidate was already accepted by earlier runs: Reset demo data and run again' } } };
+  let SEMI = SWAPS[0];
+  for (const candidate of SWAPS) {
+    SEMI = candidate;
+    semi = await placeHotel(candidate, 1000);
+    if (semi.order?.policyReasons?.includes(GENERIC)) break;
+    if (semi.order?.status === 'pending_approval') await http('POST', `/api/orders/${semi.order.id}/decision`, { decision: 'decline', decidedBy: 'e2e script', note: 'automated check, not flagged' }, {}, 30_000);
+  }
+  if (semi.order?.status === 'pending_approval' && semi.order.policyReasons.includes(GENERIC)) {
+    const accepted = await http('POST', `/api/orders/${semi.order.id}/decision`, { decision: 'approve', decidedBy: 'e2e script', note: 'automated check', acceptAsNormal: true }, {}, 60_000);
+    log(accepted.status === 200 && accepted.json?.order?.status === 'confirmed', 'approve and accept as new normal', accepted.json?.order?.status ?? accepted.json?.error);
+    const again = await http('POST', '/api/quotes', { mandateId: 'demo-hotel', deliveryDate: mondayAfter, lines: [{ productId: SEMI, quantity: 1000 }] }, {}, 60_000);
+    log(again.json?.policy && !again.json.policy.reasons.includes(GENERIC), 'after accepting, the same order is no longer flagged', again.json?.policy?.reasons?.join(' | ').slice(0, 80));
+    const trail = await http('GET', `/api/audit?orderId=${semi.order.id}`, undefined, {}, 30_000);
+    log((trail.json?.events ?? []).some((e) => e.action === 'order_accepted_as_normal'), 'the acceptance is in the audit trail');
+  } else log(false, 'a swapped milk is flagged (to test accept as new normal)', semi.order?.status ?? semi.q.json?.error);
+  // Leave the inbox as it was found: the usual and holiday orders are only held by the total limit, so decline them.
+  for (const o of [usualA.order, holiday.order]) {
+    if (o?.status === 'pending_approval') await http('POST', `/api/orders/${o.id}/decision`, { decision: 'decline', decidedBy: 'e2e script', note: 'automated check, cleaning up' }, {}, 30_000);
+  }
 
   // --- 3. MCP
   console.log('\nMCP');

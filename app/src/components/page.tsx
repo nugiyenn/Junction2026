@@ -5,7 +5,7 @@ export function Page({ title, actions, children }: { title: string; actions?: Re
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 md:py-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl leading-tight font-semibold">{title}</h1>
+        <h1 className="text-[2.6rem] leading-[0.95] font-black">{title}</h1>
         {actions}
       </header>
       {children}
@@ -28,7 +28,7 @@ export function Pill({ tone = 'plain', large, className, children }: { tone?: To
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full font-semibold whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-[3px] font-semibold whitespace-nowrap',
         large ? 'h-8 px-3.5 text-sm' : 'h-[26px] px-2.5 text-xs',
         TONES[tone],
         className
@@ -40,7 +40,7 @@ export function Pill({ tone = 'plain', large, className, children }: { tone?: To
 }
 
 export const Panel = ({ className, children, ...rest }: React.ComponentProps<'section'>) => (
-  <section className={cn('rounded-xl border bg-card p-5', className)} {...rest}>
+  <section className={cn('rounded-[10px] border bg-card p-5', className)} {...rest}>
     {children}
   </section>
 );

@@ -1,17 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from 'cn';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { call, clock, eur } from '@/components/flow/api';
+import { DeviationCard } from '@/components/approvals/deviation-card';
 import { Page, Panel, Pill } from '@/components/page';
 import { signedDecision } from '@/components/verify/device-key';
 import { ReceiptLink } from '@/components/verify/receipt-link';
-import type { ExposedOrder, Mandate, Order } from '@/types';
+import type { DeviationReport, ExposedOrder, Mandate, Order } from '@/types';
 
 type Filter = 'pending_approval' | 'all';
+
+/** What the approver sees of the unusual-order check: the report, none recorded, or the approver key was not given. */
+type Deviation = { report: DeviationReport } | 'none' | 'locked';
+
+/** Held as unusual: the buyer has a usual order and something in this one differs from it. */
+const UNUSUAL = (r: DeviationReport) => r.hasBaseline && r.differing > 0;
 
 const STATUS: Record<Order['status'], { label: string; tone: 'ok' | 'warn' | 'bad' }> = {
   confirmed: { label: 'Approved', tone: 'ok' },
@@ -28,6 +35,8 @@ export function ApprovalInbox() {
   const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deviations, setDeviations] = useState<Record<string, Deviation>>({});
+  const asked = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     try {
@@ -53,7 +62,26 @@ export function ApprovalInbox() {
     };
   }, [refresh]);
 
-  async function decide(order: ExposedOrder, decision: 'approve' | 'decline') {
+  // The comparison with the buyer's usual orders is approver-only data: fetched once per waiting order, with the approver key.
+  const loadDeviation = useCallback(async (id: string) => {
+    try {
+      const { report } = await call<{ report: DeviationReport }>(`/api/orders/${id}/deviation`);
+      setDeviations((d) => ({ ...d, [id]: { report } }));
+    } catch (err) {
+      const locked = err instanceof Error && /approver key/i.test(err.message);
+      setDeviations((d) => ({ ...d, [id]: locked ? 'locked' : 'none' }));
+    }
+  }, []);
+
+  useEffect(() => {
+    for (const o of orders ?? []) {
+      if (o.status !== 'pending_approval' || asked.current.has(o.id)) continue;
+      asked.current.add(o.id);
+      void loadDeviation(o.id);
+    }
+  }, [orders, loadDeviation]);
+
+  async function decide(order: ExposedOrder, decision: 'approve' | 'decline', acceptAsNormal = false) {
     setBusy(order.id);
     try {
       const text = note[order.id]?.trim() || undefined;
@@ -61,6 +89,7 @@ export function ApprovalInbox() {
         decision,
         decidedBy: approver,
         note: text,
+        ...(acceptAsNormal ? { acceptAsNormal: true } : {}),
         ...(await signedDecision(order.id, decision, approver, text)),
       });
       await refresh();
@@ -82,7 +111,7 @@ export function ApprovalInbox() {
             <Button
               key={f}
               variant={filter === f ? 'default' : 'outline'}
-              className={cn('h-11 rounded-full px-4', filter === f && 'bg-foreground text-background hover:bg-foreground/90')}
+              className={cn('h-11 px-4', filter === f && 'bg-primary text-primary-foreground hover:bg-petrol-dark')}
               onClick={() => setFilter(f)}
             >
               {f === 'all' ? 'All orders' : 'Waiting'}
@@ -117,6 +146,8 @@ export function ApprovalInbox() {
         {orders?.map((o) => {
           const s = STATUS[o.status];
           const pending = o.status === 'pending_approval';
+          const dev = pending ? deviations[o.id] : undefined;
+          const unusual = typeof dev === 'object' && UNUSUAL(dev.report);
           return (
             <Panel key={o.id} className="flex flex-col gap-3.5">
               <div className="flex flex-wrap items-start justify-between gap-2.5">
@@ -157,6 +188,23 @@ export function ApprovalInbox() {
                 </ul>
               )}
 
+              {typeof dev === 'object' && <DeviationCard report={dev.report} />}
+              {dev === 'locked' && (
+                <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+                  The comparison with the buyer&apos;s usual orders needs the approver key.
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDeviations((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== o.id)));
+                      void loadDeviation(o.id);
+                    }}
+                  >
+                    Show comparison
+                  </Button>
+                </p>
+              )}
+
               {pending ? (
                 <div className="flex flex-wrap items-center gap-2.5">
                   <Input
@@ -167,11 +215,16 @@ export function ApprovalInbox() {
                     aria-label="Note"
                   />
                   <Button className="h-11 px-5" onClick={() => decide(o, 'approve')} disabled={busy !== null || noApprover}>
-                    {busy === o.id ? 'Saving…' : 'Approve'}
+                    {busy === o.id ? 'Saving…' : unusual ? 'Approve this order' : 'Approve'}
                   </Button>
-                  <Button variant="outline" className="h-11 px-5 text-destructive" onClick={() => decide(o, 'decline')} disabled={busy !== null || noApprover}>
+                  <Button variant="outline" className="h-11 px-5" onClick={() => decide(o, 'decline')} disabled={busy !== null || noApprover}>
                     Decline
                   </Button>
+                  {unusual && (
+                    <Button variant="outline" className="h-11 px-5" onClick={() => decide(o, 'approve', true)} disabled={busy !== null || noApprover}>
+                      Approve and accept as new normal
+                    </Button>
+                  )}
                   {noApprover && <span className="text-xs text-muted-foreground">Name required</span>}
                 </div>
               ) : (

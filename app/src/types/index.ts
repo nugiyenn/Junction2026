@@ -428,7 +428,11 @@ export type AuditAction =
   | 'order_sent_for_approval'
   | 'order_rejected_by_policy'
   | 'order_approved'
-  | 'order_declined';
+  | 'order_declined'
+  /** Approver-only: the full unusual-order report for one order. Never served by /api/audit or put in a receipt. */
+  | 'deviation_report'
+  /** A person approved a flagged order and said it is the buyer's new normal, so it counts in future baselines. */
+  | 'order_accepted_as_normal';
 
 export interface AuditEvent {
   id: string;
@@ -803,5 +807,153 @@ export interface ReceiptCheck {
 export interface PolicyContext {
   /** Confirmed and pending orders of this mandate in the last 24 hours, ex VAT, not counting the order being judged. */
   spentLast24hEur?: number;
+  /** How this order compares with the buyer's usual orders (see lib/deviation.ts). Any `review` finding sends it to a person. */
+  deviations?: DeviationReport;
 }
 
+// --- unusual order check ---
+
+/** `review` differs and needs a person, `info` differs but is not a reason by itself, `usual` matches the buyer's habit. */
+export type DeviationResult = 'usual' | 'review' | 'info';
+
+export interface DeviationCheck {
+  id: string;
+  /** "Product", "Fat per 100 g", "Quantity", "Delivery weekday" ... */
+  label: string;
+  /** What the buyer usually orders, with its evidence: "1,000 L (800 to 1,200)", "Monday, 12 of 12". */
+  usual: string;
+  thisOrder: string;
+  result: DeviationResult;
+  /** The Result cell: "+4.2 g", "+14%", "Different product". */
+  detail?: string;
+  /** Checks with the same group count as one finding (a product swap and its attribute rows). */
+  group?: string;
+  /** Product name, to tell the lines of an order apart. */
+  line?: string;
+}
+
+export interface DeviationReport {
+  /** Past orders the baseline is built from. */
+  basedOn: number;
+  /** False when the buyer has no standing order yet: nothing is flagged. */
+  hasBaseline: boolean;
+  checks: DeviationCheck[];
+  /** Findings (groups) with a `review` check, and all findings. */
+  differing: number;
+  total: number;
+  /** One plain sentence per differing finding, for the approver's summary line. */
+  findings: string[];
+}
+
+/** One line of a past order. `amount` is litres or kilos (pack size times packs); `unit` is 'unit' when the size is unknown. */
+export interface DeviationHistoryLine {
+  productId: string;
+  name: string;
+  amount: number;
+  unit: 'L' | 'KG' | 'unit';
+  total?: number | null;
+}
+
+/** A past order of the same mandate, as the unusual-order check reads it. */
+export interface DeviationHistoryOrder {
+  id: string;
+  /** When it was placed, ISO 8601. */
+  at: string;
+  /** YYYY-MM-DD. Falls back to `at` when missing. */
+  deliveryDate?: string | null;
+  total: number;
+  lines: DeviationHistoryLine[];
+  /** The check flagged it. It counts as a normal order only if a person accepted it as the new normal. */
+  flagged?: boolean;
+  acceptedAsNormal?: boolean;
+}
+
+
+// ---------------------------------------------------------------------------
+// Recipe order: pasted recipe or shopping list -> lines -> matched products -> one quote
+// ---------------------------------------------------------------------------
+
+/** KG covers kg and g, L covers l, dl, cl and ml, unit covers pieces (kpl, pcs, pc, st). */
+export type RecipeUnit = 'KG' | 'L' | 'unit';
+
+/** One line of a recipe as read from the text. The amount is as written (the portions factor is applied later). */
+export interface RecipeLine {
+  /** The text the line was read from. */
+  raw: string;
+  name: string;
+  /** In `unit`: grams are converted to kilograms, decilitres and millilitres to litres. */
+  amount: number;
+  unit: RecipeUnit;
+  /** A valioaimo.fi product link given in the text. Its address names the product, so it is a strong matching hint. */
+  link?: string;
+  /** Who split the text into this line: the parser (code) or, as a fallback for prose, a model. Set by the reading step. */
+  readBy?: RecipeReader;
+}
+
+/** code: the parser read the line. model: a model read prose the parser could not, so every such line needs a look. */
+export type RecipeReader = 'code' | 'model';
+
+export interface ParsedRecipe {
+  lines: RecipeLine[];
+  /** Text that could not be read as an amount with a name. Never silently dropped. */
+  skipped: string[];
+}
+
+/**
+ * matched: a product that fits the name. weak: the best product found fits only partly, check it.
+ * not_found: nothing in Valio's range fits (water, salt and the like). unpriced: Valio gave no price in time or at all.
+ */
+export type RecipeMatchStatus = 'matched' | 'weak' | 'not_found' | 'unpriced';
+
+/** A product proposed for a recipe line, with only what a buyer may see in a quote (no list price, discount, supplier, category or stock amount). */
+export interface RecipeProduct {
+  productId: string;
+  name: string;
+  brand: string | null;
+  gtin: string | null;
+  salesUnit: string;
+  /** Kilograms or litres in one sales unit, or 1 when the line is counted in pieces. Null when it cannot be worked out. */
+  packSize: number | null;
+  packUnit: RecipeUnit | null;
+  /** Sales units that cover the line, rounded up to the lot size. Null when there is no pack size. */
+  quantity: number | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+  fulfillable: boolean;
+  /** Plain reasons the line cannot be filled as asked. Exact stock is never named. */
+  issues: string[];
+  stock: StockView;
+}
+
+export interface RecipeLineMatch {
+  /** Position of the line in the recipe, from 0. */
+  index: number;
+  raw: string;
+  name: string;
+  link?: string;
+  /** Who read the line out of the text. Lines read by a model are to be checked one by one. */
+  readBy: RecipeReader;
+  /** As read from the text. */
+  baseAmount: number;
+  /** After the portions factor. This is the amount the packs were sized for. */
+  amount: number;
+  unit: RecipeUnit;
+  status: RecipeMatchStatus;
+  /** True for water and ice: not a miss, just not something to order. The status stays `not_found`. */
+  notOrdered?: boolean;
+  /** One plain sentence on what to check, or why nothing was found. Null when there is nothing to add. */
+  note: string | null;
+  proposal: RecipeProduct | null;
+  /** Up to two other products, best first. */
+  alternatives: RecipeProduct[];
+}
+
+export interface RecipeResult {
+  lines: RecipeLineMatch[];
+  /** True when a model, not the parser, read at least one line. */
+  readByModel: boolean;
+  skipped: string[];
+  deliveryDate: string;
+  multiplier: number;
+  notes: string[];
+}

@@ -59,3 +59,5 @@ Then run the third statement of `scripts/clickhouse.sql` (the materialized view)
 ## Synthetic demo history
 
 `order_history` holds generated past orders for `demo-hotel` and `demo-school` (about 90 days, marked synthetic by the table itself and labelled "Demo history" on the page). Create it with `scripts/seed.mts` (additive) or just run `scripts/seed-history.mts`, which also creates the table. The demo reset does not touch it.
+
+`scripts/seed-standing-orders.mts` adds 26 weeks of synthetic standing orders to the same table (weekly milk, cream and butter for `demo-hotel`, oat drink and granola for `demo-school`, with product ids, packs and litres or kilos). The unusual-order check (`src/lib/deviation.ts`) reads them as the buyers' usual orders. Idempotent, INSERTs only: `node --conditions=react-server --env-file=.env.local scripts/seed-standing-orders.mts`. ClickHouse shows them after the next `clickhouse-backfill.mts`.

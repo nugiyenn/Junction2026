@@ -1,6 +1,8 @@
 import 'server-only';
 import { logAudit } from '@/lib/audit';
 import { getProductsByIds } from '@/lib/catalog';
+import { detectDeviations } from '@/lib/deviation';
+import { getDeviationReport, loadDeviationHistory } from '@/lib/deviation-history';
 import { describeProblems } from '@/lib/exposure';
 import { getPool } from '@/lib/db';
 import { HttpError } from '@/lib/http';
@@ -11,6 +13,7 @@ import { getVerifications } from '@/lib/verify';
 import { getAvailability, getPrices } from '@/lib/valio';
 import type {
   ApproverSignature,
+  DeviationReport,
   Mandate,
   OfferPreference,
   Order,
@@ -375,16 +378,21 @@ export async function spentInLast24h(mandateId: string, excludeQuoteId: string |
 }
 
 /** Applies the buyer's mandate to a quote. Reads stored web checks only: no live call while an order is judged. */
-async function judgeQuote(quote: Quote): Promise<{ mandate: Mandate; decision: PolicyDecision }> {
+async function judgeQuote(quote: Quote): Promise<{ mandate: Mandate; decision: PolicyDecision; deviations: DeviationReport }> {
   const lineIds = quote.lines.map((l) => l.productId);
-  const [mandate, products, verifications, recalls, spentLast24hEur] = await Promise.all([
+  const [mandate, products, verifications, recalls, spentLast24hEur, history] = await Promise.all([
     getMandate(quote.mandateId),
     getProductsByIds(lineIds),
     getVerifications(lineIds),
     getRecallChecks(lineIds),
     spentInLast24h(quote.mandateId, quote.id),
+    loadDeviationHistory(quote.mandateId),
   ]);
-  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications, recalls, { spentLast24hEur }) };
+  // The unusual-order check compares with the buyer's own past orders, so it also needs the catalog rows of those products.
+  const pastIds = [...new Set(history.flatMap((h) => h.lines.map((l) => l.productId)))].filter((id) => !products.has(id));
+  const known = pastIds.length ? new Map([...products, ...(await getProductsByIds(pastIds))]) : products;
+  const deviations = detectDeviations(history, quote, known);
+  return { mandate, decision: evaluateOrder(mandate, quote, products, verifications, recalls, { spentLast24hEur, deviations }), deviations };
 }
 
 /** What the mandate would decide if this quote were ordered now. The same rules as placeOrder; writes nothing. */
@@ -414,7 +422,7 @@ export async function placeOrder(quoteId: string): Promise<Order> {
     throw new HttpError(409, 'The quote is unsigned, or its price or quantities no longer match Valio\'s signature. Request a new quote.');
   }
 
-  const { mandate, decision } = await judgeQuote(quote);
+  const { mandate, decision, deviations } = await judgeQuote(quote);
   const status: OrderStatus = { auto_approve: 'confirmed', needs_approval: 'pending_approval', reject: 'rejected' }[
     decision.outcome
   ] as OrderStatus;
@@ -451,6 +459,18 @@ export async function placeOrder(quoteId: string): Promise<Order> {
     data: { outcome: decision.outcome, reasons: decision.reasons },
   });
 
+  // The full unusual-order report is for the approver only. It is stored as an event without a quote or order column,
+  // so /api/audit and receipts (which read by those columns) never serve it, and it is not published to Kafka with a body.
+  await logAudit({
+    actor: 'system',
+    action: 'deviation_report',
+    mandateId: mandate.id,
+    quoteId: null,
+    orderId: null,
+    summary: 'Compared the order with the buyer\'s usual orders.',
+    data: { orderId: order.id, quoteId: quote.id, report: deviations },
+  });
+
   return order;
 }
 
@@ -463,8 +483,17 @@ export async function decideOrder(
   decision: 'approve' | 'decline',
   decidedBy: string,
   note?: string,
-  approval?: ApproverSignature
+  approval?: ApproverSignature,
+  /** Approve only: the order was flagged as unusual and the approver says it is the buyer's new normal, so it counts in future baselines. */
+  acceptAsNormal = false
 ): Promise<Order> {
+  if (acceptAsNormal) {
+    if (decision !== 'approve') throw new HttpError(400, 'Only an approval can be accepted as the new normal.');
+    // Checked before anything is written, so a refused request leaves the order waiting.
+    if (((await getDeviationReport(orderId))?.differing ?? 0) === 0) {
+      throw new HttpError(400, 'This order was not flagged as unusual, so there is nothing to accept as the new normal.');
+    }
+  }
   const { rows } = await getPool().query<OrderRow>(
     `UPDATE orders SET status = $2, decided_by = $3, decided_at = now(), decision_note = $4,
        decision_payload = $5, decision_signature = $6, decision_public_key = $7
@@ -496,6 +525,18 @@ export async function decideOrder(
       `${order.total.toFixed(2)} ${order.currency} ex VAT.${note ? ` Note: ${note}` : ''}`,
     data: { decidedBy, note: note ?? null, signed: Boolean(approval) },
   });
+
+  if (acceptAsNormal) {
+    await logAudit({
+      actor: 'human',
+      action: 'order_accepted_as_normal',
+      mandateId: order.mandateId,
+      quoteId: order.quoteId,
+      orderId: order.id,
+      summary: `${decidedBy} accepted this order as the new normal: it now counts as one of the buyer's usual orders.`,
+      data: { decidedBy },
+    });
+  }
 
   return order;
 }

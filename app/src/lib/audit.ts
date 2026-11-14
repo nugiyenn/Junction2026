@@ -82,12 +82,16 @@ export async function logAudit(event: Omit<AuditEvent, 'id' | 'at' | 'hash' | 'p
   }
 }
 
-/** Newest first. With `orderId`, also returns the events of the quote that order came from. */
+/**
+ * Newest first. With `orderId`, also returns the events of the quote that order came from.
+ * Approver-only events (`deviation_report`: the buyer's usual order, in numbers) are never listed here: this feed is open.
+ */
 export async function listAudit(filter: { orderId?: string; mandateId?: string }, limit = 100): Promise<AuditEvent[]> {
   const { rows } = await getPool().query<AuditRow>(
     `SELECT * FROM audit_events
      WHERE ($1::uuid IS NULL OR order_id = $1 OR quote_id = (SELECT quote_id FROM orders WHERE id = $1))
        AND ($2::text IS NULL OR mandate_id = $2)
+       AND action <> 'deviation_report'
      ORDER BY id DESC LIMIT $3`,
     [filter.orderId ?? null, filter.mandateId ?? null, limit]
   );

@@ -1,3 +1,4 @@
+import { DEVIATION_REASON } from './deviation.ts';
 import { isTrustedSource } from './evidence.ts';
 import type { Mandate, PolicyContext, PolicyDecision, PolicyOutcome, Product, Quote, RecallCheck, Verification } from '@/types';
 
@@ -19,6 +20,9 @@ export const hasNoAllergenData = (p: Product) =>
  *   limit passes. It adds nothing when this order alone is already above the limit (that reason covers it) or when no
  *   earlier spend is known (`context.spentLast24hEur` missing or 0).
  * - a blocked allergen the product contains -> reject; may contain -> human
+ * - unusual order: the order differs from this buyer's own recent orders (a different product, a quantity far outside
+ *   the usual, a new item that is a large share of the order; see deviation.ts) -> human. It never rejects and never
+ *   lowers a stricter outcome. The reason is one fixed sentence: the details are for the approver, not for the agent.
  * - blocked allergens on the mandate and the product has no allergen data at all -> human (unverified)
  * - a stored live-web check: a source saying "contains" a blocked allergen -> reject, "may contain" or any
  *   disagreement with the catalog -> human; a source confirming "free from" every blocked allergen clears
@@ -65,6 +69,8 @@ export function evaluateOrder(
       `Orders in the last 24 hours (${eur(spent)}) plus this one (${eur(quote.total)}) are above the auto-approve limit of ${eur(mandate.autoApproveLimitEur)}.`
     );
   }
+
+  if ((context.deviations?.differing ?? 0) > 0) raise('needs_approval', DEVIATION_REASON);
 
   for (const line of quote.lines) {
     const product = products.get(line.productId);

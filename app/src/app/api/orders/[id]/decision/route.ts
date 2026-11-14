@@ -9,6 +9,8 @@ const Body = z.object({
   decision: z.enum(['approve', 'decline']),
   decidedBy: z.string().min(1),
   note: z.string().optional(),
+  /** Approve only: also count this flagged order as the buyer's new normal in future unusual-order checks. */
+  acceptAsNormal: z.boolean().optional(),
   /** The decision signed by the approver's device key. Optional: older clients and scripts do not send it. */
   signature: z
     .object({
@@ -26,15 +28,16 @@ const Body = z.object({
 });
 
 /**
- * POST /api/orders/:id/decision  { decision: "approve" | "decline", decidedBy, note?, signature? }
+ * POST /api/orders/:id/decision  { decision: "approve" | "decline", decidedBy, note?, acceptAsNormal?, signature? }
  * The human sign-off for an order in `pending_approval`. Needs the approver key when APPROVER_KEY is set.
+ * `acceptAsNormal: true` (approve only, for an order flagged as unusual) records that the order is the buyer's new normal.
  * A signature must be the device's ES256 signature over exactly this decision, or the request is refused.
  */
 export async function POST(request: Request, ctx: RouteContext<'/api/orders/[id]/decision'>) {
   try {
     requireApprover(request);
     const id = z.uuid().parse((await ctx.params).id);
-    const { decision, decidedBy, note, signature } = Body.parse(await request.json());
+    const { decision, decidedBy, note, signature, acceptAsNormal } = Body.parse(await request.json());
     const approval = signature && { alg: 'ES256' as const, ...signature };
     if (approval) {
       const p = approval.payload;
@@ -43,7 +46,7 @@ export async function POST(request: Request, ctx: RouteContext<'/api/orders/[id]
       }
       if (!(await verifyApproverSignature(approval))) throw new HttpError(400, 'The decision signature does not verify.');
     }
-    return Response.json({ order: exposeOrder(await decideOrder(id, decision, decidedBy, note, approval)) });
+    return Response.json({ order: exposeOrder(await decideOrder(id, decision, decidedBy, note, approval, acceptAsNormal)) });
   } catch (err) {
     return errorResponse(err);
   }

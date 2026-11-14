@@ -23,6 +23,7 @@ import { ReceiptLink } from '@/components/verify/receipt-link';
 import { signedDecision } from '@/components/verify/device-key';
 import { call, clock, eur } from './api';
 import { MandatePanel } from './mandate-panel';
+import { RecurringOrders } from './recurring-orders';
 import { LiveChecksSummary, VerifyCheck } from './verify-check';
 
 const SCENARIOS = [
@@ -333,7 +334,7 @@ export function PurchaseFlow() {
           <Button
             key={s.label}
             variant={activeScenario === s.label ? 'default' : 'outline'}
-            className={cn('h-11 rounded-full px-4', activeScenario === s.label && 'bg-foreground text-background hover:bg-foreground/90')}
+            className={cn('h-11 px-4', activeScenario === s.label && 'bg-primary text-primary-foreground hover:bg-petrol-dark')}
             disabled={anyBusy}
             onClick={() => runScenario(s)}
           >
@@ -341,6 +342,8 @@ export function PurchaseFlow() {
           </Button>
         ))}
       </section>
+
+      <RecurringOrders disabled={anyBusy} />
 
       {error && (
         <Alert variant="destructive">

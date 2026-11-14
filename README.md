@@ -26,6 +26,7 @@ A language model reads the request. Code decides everything else: quantities, pr
 ## Pages
 
 - `/verify`: check an order's signed receipt in the browser.
+- `/recipe`: Recipe order. Paste a recipe or shopping list, match each line to a Valio product with pack quantities, and create one quote. Code reads the text; a model only splits prose it cannot parse.
 - Also: buyer agent, approvals, what agents see, decision record, buyer stats, models.
 
 ## Tech
