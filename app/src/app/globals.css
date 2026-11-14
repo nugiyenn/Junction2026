@@ -10,6 +10,7 @@
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-heading: var(--font-inter), system-ui, sans-serif;
+  --color-lime: var(--lime);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -56,38 +57,41 @@
 }
 
 :root {
-  --background: #f6f7f6;
-  --foreground: #13201b;
+  /* Valio Aimo's own colours, read from valioaimo.fi: petrol #005670 (links, logo), lime #c0e021 (highlights),
+     ink #23282d (body text), grey #555759. Status colours stay semantic (green, amber, red). */
+  --background: #f5f6f7;
+  --foreground: #23282d;
   --card: #ffffff;
-  --card-foreground: #13201b;
+  --card-foreground: #23282d;
   --popover: #ffffff;
-  --popover-foreground: #13201b;
-  --primary: #0b5d4b;
+  --popover-foreground: #23282d;
+  --primary: #005670;
   --primary-foreground: #ffffff;
-  --secondary: #e4f0ec;
-  --secondary-foreground: #0b5d4b;
-  --muted: #eef2ef;
-  --muted-foreground: #586660;
-  --accent: #e4f0ec;
-  --accent-foreground: #0b5d4b;
+  --secondary: #e5eef1;
+  --secondary-foreground: #005670;
+  --muted: #eef1f3;
+  --muted-foreground: #555759;
+  --accent: #e5eef1;
+  --accent-foreground: #005670;
   --destructive: #9b2226;
-  --border: #e1e6e2;
-  --input: #d3dad5;
-  --ring: #0b5d4b;
-  --chart-1: #0b5d4b;
-  --chart-2: #17653a;
+  --border: #dde2e5;
+  --input: #cdd4d8;
+  --ring: #005670;
+  --chart-1: #005670;
+  --chart-2: #c0e021;
   --chart-3: #b7791f;
   --chart-4: #4b3b9a;
-  --chart-5: #586660;
+  --chart-5: #555759;
   --radius: 0.75rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #13201b;
-  --sidebar-primary: #0b5d4b;
+  --sidebar-foreground: #23282d;
+  --sidebar-primary: #005670;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e4f0ec;
-  --sidebar-accent-foreground: #0b5d4b;
-  --sidebar-border: #e1e6e2;
-  --sidebar-ring: #0b5d4b;
+  --sidebar-accent: #e5eef1;
+  --sidebar-accent-foreground: #005670;
+  --sidebar-border: #dde2e5;
+  --sidebar-ring: #005670;
+  --lime: #c0e021;
   --ok: #17653a;
   --ok-soft: #e6f4ea;
   --warn: #7a4e00;
