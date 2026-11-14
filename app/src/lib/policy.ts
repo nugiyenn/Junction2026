@@ -1,3 +1,4 @@
+import { isTrustedSource } from './evidence.ts';
 import type { Mandate, PolicyContext, PolicyDecision, PolicyOutcome, Product, Quote, RecallCheck, Verification } from '@/types';
 
 const SEVERITY: Record<PolicyOutcome, number> = { auto_approve: 0, needs_approval: 1, reject: 2 };
@@ -81,7 +82,8 @@ export function evaluateOrder(
     }
     const check = verifications.get(line.productId);
     const confirmedFree = (code: string) =>
-      check?.statements.some((s) => s.topic === 'allergen' && s.allergen === code && s.stance === 'free_from') ?? false;
+      // Only a trusted source can clear an unknown allergen (see TRUSTED_SOURCE_HOSTS in evidence.ts); any page can add a concern.
+      check?.statements.some((s) => s.topic === 'allergen' && s.allergen === code && s.stance === 'free_from' && isTrustedSource(s.sourceUrl)) ?? false;
     if (mandate.blockedAllergens.length > 0 && hasNoAllergenData(product) && !mandate.blockedAllergens.every(confirmedFree)) {
       raise(
         'needs_approval',

@@ -119,13 +119,13 @@ describe('stock confirmation and substitutes', () => {
 describe('live web checks', () => {
   const school = mandate({ blockedAllergens: ['AN'] });
   const none = product({ allergensContain: [], allergensMayContain: [], allergensFreeFrom: [] });
-  const stmt = (allergen: string, stance: 'contains' | 'may_contain' | 'free_from') => ({
+  const stmt = (allergen: string, stance: 'contains' | 'may_contain' | 'free_from', sourceUrl = 'https://www.kespro.com/p') => ({
     topic: 'allergen' as const,
     stance,
     allergen,
     text: '',
     evidence: '',
-    sourceUrl: 'https://shop.example/p',
+    sourceUrl,
   });
   const check = (over: Partial<Verification> = {}): Verification => ({
     productId: 'p1',
@@ -145,13 +145,18 @@ describe('live web checks', () => {
     assert.equal(run2(none, null).outcome, 'needs_approval');
     assert.equal(run2(none, check({ statements: [stmt('AN', 'free_from')] })).outcome, 'auto_approve');
   });
+  it('a "free from" claim on a site we do not trust does not clear it, but a "contains" claim there still counts', () => {
+    assert.equal(run2(none, check({ statements: [stmt('AN', 'free_from', 'https://planted.example/page')] })).outcome, 'needs_approval');
+    assert.equal(run2(none, check({ status: 'contradiction', statements: [stmt('AN', 'contains', 'https://planted.example/page')], contradictions: ['x'] })).outcome, 'reject');
+    assert.equal(run2(none, check({ statements: [stmt('AN', 'free_from', 'https://shop.valio.fi/tuote')] })).outcome, 'auto_approve');
+  });
   it('a source that says nothing about the blocked allergen does not clear it', () => {
     assert.equal(run2(none, check({ statements: [stmt('AM', 'contains')] })).outcome, 'needs_approval');
   });
   it('a source saying "contains" a blocked allergen rejects, even when the catalog has no data', () => {
     const d = run2(none, check({ status: 'contradiction', statements: [stmt('AN', 'contains')], contradictions: ['x'] }));
     assert.equal(d.outcome, 'reject');
-    assert.match(d.reasons.join(' '), /shop\.example/);
+    assert.match(d.reasons.join(' '), /kespro\.com/);
   });
   it('a source saying "may contain" needs a human', () => {
     assert.equal(run2(product({ allergensFreeFrom: ['AN'] }), check({ statements: [stmt('AN', 'may_contain')] })).outcome, 'needs_approval');

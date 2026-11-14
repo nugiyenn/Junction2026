@@ -34,6 +34,24 @@ export function normalize(text: string): string {
     .trim();
 }
 
+/**
+ * Sites whose product pages may clear an unknown allergen: the maker and the Finnish grocery and wholesale shops seen in
+ * practice. A page anywhere else can only make an order stricter ("contains", "may contain", a disagreement), never looser.
+ * Otherwise a page that says "free from nuts" in a sentence the model copies, true or planted, could clear a nut-blocking buyer.
+ */
+export const TRUSTED_SOURCE_HOSTS = [
+  'valio.fi', 'valio.com', 'valioaimo.fi', 'kespro.com', 'valotilaus.fi', 'k-ruoka.fi', 's-kaupat.fi', 'prisma.fi', 'foodie.fi',
+];
+
+export function isTrustedSource(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return TRUSTED_SOURCE_HOSTS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 /** True when the quoted passage really appears in the page. Too short to mean anything counts as not found. */
 export function evidenceAppears(evidence: string, page: string): boolean {
   const quote = normalize(evidence);

@@ -61,10 +61,14 @@ describe('web page injection', () => {
     assert.equal(pageMatchesProduct(INJECTION_PAGE, INJECTION_PRODUCT), true);
   });
 
-  it('a quote copied from the injected sentence passes the evidence check and clears the unverified rule (a finding)', () => {
+  it('a quote copied from an injected sentence on an unknown site no longer clears the unverified rule', () => {
     assert.equal(evidenceAppears(INJECTED_SENTENCE, INJECTION_PAGE), true);
     const { onPage, aboutProduct, decision } = copiedInjectionOutcome();
     assert.ok(onPage && aboutProduct);
+    assert.equal(decision.outcome, 'needs_approval');
+  });
+  it('the same sentence on a trusted site still clears it (an honest finding, not fixed)', () => {
+    const { decision } = copiedInjectionOutcome('https://www.kespro.com/planted-listing');
     assert.equal(decision.outcome, 'auto_approve');
   });
 });
