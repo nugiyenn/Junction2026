@@ -2,11 +2,20 @@ import 'server-only';
 import { withKV } from './cache.ts';
 import { HttpError } from './http.ts';
 
-/** Per-agent (per mandate) limits, one fixed window each. Requests are the expensive ones: they call models and the web. */
+const fromEnv = (name: string, fallback: number) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+};
+
+/**
+ * Per-agent (per mandate) limits, one fixed window each. Requests are the expensive ones: they call models and the web.
+ * The public demo shares one mandate between everyone who opens it, so the defaults leave room for several visitors;
+ * set RATE_LIMIT_REQUESTS_PER_MIN, RATE_LIMIT_QUOTES_PER_MIN and RATE_LIMIT_ORDERS_PER_MIN to tighten them.
+ */
 export const LIMITS = {
-  requests: { limit: 6, windowSeconds: 60 },
-  quotes: { limit: 30, windowSeconds: 60 },
-  orders: { limit: 20, windowSeconds: 60 },
+  requests: { limit: fromEnv('RATE_LIMIT_REQUESTS_PER_MIN', 20), windowSeconds: 60 },
+  quotes: { limit: fromEnv('RATE_LIMIT_QUOTES_PER_MIN', 60), windowSeconds: 60 },
+  orders: { limit: fromEnv('RATE_LIMIT_ORDERS_PER_MIN', 30), windowSeconds: 60 },
 } as const;
 
 export interface RateLimitResult {

@@ -2,7 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import { searchProducts } from '@/lib/catalog';
 import { exposeOrder, exposeQuote } from '@/lib/exposure';
-import { getMandate, createQuote, getOrder, placeOrder } from '@/lib/purchasing';
+import { getMandate, createQuote, getOrder, getQuote, placeOrder } from '@/lib/purchasing';
+import { enforceRateLimit } from '@/lib/ratelimit';
 import { planRequest } from '@/lib/request';
 import { verifyProduct } from '@/lib/verify';
 import type { McpServerInfo, McpTool } from '@/lib/mcp';
@@ -53,7 +54,10 @@ export const MCP_TOOLS: McpTool[] = [
     description:
       'Turn a plain-language need such as "1,000 litres of lactose-free milk by Monday" into ranked offers (cheapest, most reliable, lowest CO2; a split or substitutes when stock is short) and a held, signed quote for the default offer. Takes up to a minute.',
     inputSchema: z.object({ mandateId, text: z.string().min(3).max(500) }),
-    run: async ({ mandateId, text }) => planRequest(mandateId, text),
+    run: async ({ mandateId, text }) => {
+      await enforceRateLimit('requests', mandateId);
+      return planRequest(mandateId, text);
+    },
   }),
   tool({
     name: 'create_quote',
@@ -64,14 +68,20 @@ export const MCP_TOOLS: McpTool[] = [
       deliveryDate: z.iso.date(),
       lines: z.array(z.object({ productId: z.string(), quantity: z.number().positive(), substituteFor: z.string().optional() })).min(1).max(20),
     }),
-    run: async (args) => exposeQuote(await createQuote(args)),
+    run: async (args) => {
+      await enforceRateLimit('quotes', args.mandateId);
+      return exposeQuote(await createQuote(args));
+    },
   }),
   tool({
     name: 'place_order',
     description:
       "Commit to a quote at its fixed prices. The buyer's mandate decides: the order comes back confirmed, pending_approval (a human must approve it) or rejected, with the reasons.",
     inputSchema: z.object({ quoteId: z.uuid() }),
-    run: async ({ quoteId }) => exposeOrder(await placeOrder(quoteId)),
+    run: async ({ quoteId }) => {
+      await enforceRateLimit('orders', (await getQuote(quoteId)).mandateId);
+      return exposeOrder(await placeOrder(quoteId));
+    },
   }),
   tool({
     name: 'get_order_status',
