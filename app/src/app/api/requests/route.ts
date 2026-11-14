@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { withTimeout } from '@/lib/deadline';
 import { errorResponse, HttpError } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/ratelimit';
+import { MAX_REQUEST_CHARS } from '@/lib/interpret';
 import { planRequest } from '@/lib/request';
 
 /** Model calls and live web reads take up to a couple of minutes: ask the host for the longest limit it allows. */
@@ -9,7 +10,7 @@ export const maxDuration = 300;
 
 const Body = z.object({
   mandateId: z.string().min(1),
-  text: z.string().min(3).max(500),
+  text: z.string().min(3).max(MAX_REQUEST_CHARS),
 });
 
 /**

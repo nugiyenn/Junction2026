@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { compareInterpretations, weekdayDate } from '../src/lib/interpret.ts';
+import { compareInterpretations, quantityLineCount, weekdayDate } from '../src/lib/interpret.ts';
 import type { PurchaseRequest } from '../src/types/index.ts';
 
 // 2026-11-14 is a Saturday.
@@ -48,5 +48,17 @@ describe('compareInterpretations', () => {
   });
   it('lists every difference', () => {
     assert.equal(compareInterpretations(base, { ...base, amount: 10, deliveryDate: '2026-11-18' }).length, 2);
+  });
+});
+
+describe('quantityLineCount', () => {
+  it('counts the lines of a recipe that start with a quantity and a unit', () => {
+    const recipe = '0,323 kg\n[Oddlygood Cooking Oat](https://example.com)\n0,277 kg Oddlygood Dream Fraiche\n1,062 kg kylmää vettä\n0,037 kg punaviinietikkaa\n2 dl cream';
+    assert.equal(quantityLineCount(recipe), 5);
+  });
+
+  it('a one-product request counts at most one', () => {
+    assert.equal(quantityLineCount('I need 1,000 litres of lactose-free milk by Monday.'), 0);
+    assert.equal(quantityLineCount('100 L lactose-free milk by Monday'), 1);
   });
 });

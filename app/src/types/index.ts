@@ -708,108 +708,6 @@ export interface InterpretationCheck {
   /** The second model's reading in a line, or why it was unavailable. */
   detail: string;
 }
-// --- intake ---
-
-/** One thing to buy that the vision model read off a photo. Nothing is quoted or ordered from it: a person taps it to use it. */
-export interface IntakeLine {
-  /** The line as written, e.g. "20 kg granola, no nuts". */
-  text: string;
-  /** Short English product description, e.g. "granola". */
-  product: string;
-  /** The number written, null when the line has none. */
-  amount: number | null;
-  /** Same units as PurchaseRequest ("5 cases" and "3 kpl" are "unit"); null when none is written. */
-  amountUnit: 'L' | 'KG' | 'unit' | null;
-  confidence: 'high' | 'medium' | 'low';
-}
-
-/** POST /api/intake answer. */
-export interface IntakeResult {
-  lines: IntakeLine[];
-  /** One short sentence about the photo (unreadable, nothing to buy, cut to 12 lines, ...). Empty when there is nothing to say. */
-  note: string;
-  /** The model that read the image, as sent to the API. */
-  readBy: string;
-}
-
-// --- autonomy ---
-
-/** One past order as earned autonomy reads it: a subset of `StatsOrder`. */
-export type AutonomyOrder = Pick<StatsOrder, 'at' | 'total' | 'outcome' | 'synthetic'>;
-
-/** A proposed change to the auto-approve limit, computed from the buyer's record of human decisions. A person accepts it. */
-export interface AutonomySuggestion {
-  /** Deterministic hash of mandate, field, new value and evidence counts: the server recomputes it to check it is still current. */
-  id: string;
-  kind: 'raise_auto_limit' | 'lower_auto_limit';
-  field: 'autoApproveLimitEur';
-  from: number;
-  to: number;
-  /** One plain sentence. */
-  reason: string;
-  evidence: {
-    /** Orders the rule looked at. */
-    orders: number;
-    approved: number;
-    /** Declined by a person, or rejected by the mandate (lower rule only). */
-    declined: number;
-    windowDays: number;
-    /** 0-1: the share of the evidence orders that come from generated demo history. */
-    syntheticShare: number;
-  };
-  /** Share of the window's orders (by size alone) that fit under the limit, 0-1. */
-  effect: { autoApprovedShareBefore: number; autoApprovedShareAfter: number };
-}
-
-/** Share of human-reviewed orders approved, per calendar month (UTC). */
-export interface AutonomyMonth {
-  /** YYYY-MM. */
-  month: string;
-  reviewed: number;
-  approved: number;
-  /** 0-1. */
-  approvalRate: number;
-}
-
-export interface AutonomySummary {
-  /** Reviewed (approved or declined by a person) orders in the window. */
-  reviewed: number;
-  approved: number;
-  declined: number;
-  windowDays: number;
-  /** 0-1, over the reviewed orders in the window. */
-  syntheticShare: number;
-  trajectory: AutonomyMonth[];
-  /** One line saying why there is nothing to suggest. Null when there is a suggestion. */
-  noSuggestionReason: string | null;
-}
-
-export interface AutonomyResult {
-  suggestions: AutonomySuggestion[];
-  summary: AutonomySummary;
-}
-
-/** GET /api/autonomy */
-export interface AutonomyResponse extends AutonomyResult {
-  mandate: Mandate;
-  /** How much of the history is generated demo history. */
-  note: string;
-  /** When set, only decisions after this instant count: the last time the limit was changed. */
-  evidenceSince: string | null;
-}
-
-/** POST /api/autonomy */
-export interface AutonomyAcceptRequest {
-  mandateId: string;
-  suggestionId: string;
-  decidedBy: string;
-}
-
-export interface AutonomyAcceptResponse {
-  mandate: Mandate;
-  suggestion: AutonomySuggestion;
-}
-
 // --- receipts ---
 
 /** A public key as WebCrypto and JWKS exchange it. Only the fields the checks use. */
@@ -899,7 +797,7 @@ export interface ReceiptCheck {
   detail: string;
 }
 
-// --- red team ---
+// --- policy context ---
 
 /** What the policy knows about the buyer's recent activity, beyond the order itself. */
 export interface PolicyContext {
@@ -907,36 +805,3 @@ export interface PolicyContext {
   spentLast24hEur?: number;
 }
 
-/**
- * blocked: the attack was stopped. allowed: it got through (a finding). not_protected: the protection is not configured,
- * so nothing stopped it. skipped: it could not run (reason says why).
- */
-export type RedTeamOutcome = 'blocked' | 'allowed' | 'not_protected' | 'skipped';
-
-export interface RedTeamScenarioInfo {
-  id: string;
-  title: string;
-  /** What the attacker tries, in a few words. */
-  attempt: string;
-  /** The file and function that is supposed to stop it. */
-  mechanism: string;
-}
-
-export interface RedTeamResult extends RedTeamScenarioInfo {
-  outcome: RedTeamOutcome;
-  reason: string;
-  /** Facts observed while running, one line each. */
-  evidence: string[];
-  durationMs: number;
-}
-
-/** What a free-text attack on the request reader produced, and what the policy then decided. */
-export interface RedTeamTextResult {
-  read: { product: string; amount: number; amountUnit: string; deliveryDate: string; model: string; secondOpinion: InterpretationCheck };
-  /** The order priced at a stand-in product's price, so the policy can judge it. Null when the product could not be priced. */
-  priced: { productName: string; unitPriceEur: number; totalEur: number } | null;
-  spentLast24hEur: number;
-  decision: PolicyDecision | null;
-  /** One line on what the text could not change. */
-  unchanged: string;
-}

@@ -22,7 +22,6 @@ import type {
 import { ReceiptLink } from '@/components/verify/receipt-link';
 import { signedDecision } from '@/components/verify/device-key';
 import { call, clock, eur } from './api';
-import { Intake } from './intake';
 import { MandatePanel } from './mandate-panel';
 import { LiveChecksSummary, VerifyCheck } from './verify-check';
 
@@ -377,13 +376,6 @@ export function PurchaseFlow() {
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            setActiveScenario(null);
-          }}
-        />
-        <Intake
-          disabled={anyBusy}
-          onPick={(picked) => {
-            setText(picked);
             setActiveScenario(null);
           }}
         />

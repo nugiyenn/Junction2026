@@ -82,7 +82,6 @@
   .t.w { fill: #fff; }
   .s { font: 400 12.5px -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: var(--muted); }
   .s.w { fill: #d9eaf0; }
-  .harness { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 2 4; }
   .arrow { stroke: var(--ink); stroke-width: 1.5; fill: none; }
   .arrowhead { fill: var(--ink); }
 
@@ -148,12 +147,11 @@
   <!-- 2 Solution -->
   <section class="slide" aria-label="Slide 2: Solution">
     <p class="kicker">2 · Solution</p>
-    <h1>Trust you can verify, autonomy you can earn.</h1>
+    <h1>Trust you can verify: a mandate the buyer sets, guardrails in code, and receipts anyone can check.</h1>
     <ul>
       <li>A buyer's agent sends a plain request: "1,000 litres of lactose-free milk by Monday".</li>
       <li>The gateway returns offers, then one fixed price signed by Valio.</li>
       <li>The buyer's mandate decides: confirmed, sent to a person, or rejected.</li>
-      <li>Autonomy is earned: code proposes a higher limit after people keep approving, and a person accepts.</li>
       <li>Every order gets a receipt anyone can verify, and a hash-chained record behind it.</li>
     </ul>
     <p class="note">A model reads the request. Code decides everything else.</p>
@@ -162,7 +160,7 @@
   <!-- 3 Demo flow -->
   <section class="slide" aria-label="Slide 3: Live demo flow">
     <p class="kicker">3 · Live demo flow</p>
-    <h1>Four requests, four outcomes, then four extras.</h1>
+    <h1>Four requests, four outcomes, then one extra.</h1>
 
     <svg class="flow" viewBox="0 0 960 84" role="img" aria-label="Flow: request, offers, signed quote, order, approval, record">
       <defs>
@@ -206,7 +204,7 @@
       <li><strong>Hotel, 100 L:</strong> confirmed automatically.</li>
       <li><strong>School, 20 kg granola:</strong> nut-risk products are hidden before pricing.</li>
       <li><strong>School, 100 kg granola:</strong> stock is short, so a split or a substitute needs sign-off.</li>
-      <li><strong>Extras:</strong> a receipt checked in the browser, the red team page, an order from a photo, earned autonomy.</li>
+      <li><strong>Extra:</strong> a receipt checked in the browser.</li>
     </ul>
     <p class="note">Prices, stock and model answers vary from run to run: rehearse before presenting.</p>
   </section>
@@ -214,13 +212,13 @@
   <!-- 4 Data firewall -->
   <section class="slide" aria-label="Slide 4: Data firewall and governance">
     <p class="kicker">4 · Data firewall and governance</p>
-    <h1>What the agent sees is decided in code, and we attack it ourselves.</h1>
+    <h1>What the agent sees and may decide is set in code.</h1>
     <ul>
       <li>Quotes and orders never carry list price, discount, supplier or exact stock. Catalog search hides supplier and internal category (<code>exposure.ts</code>).</li>
       <li>The mandate is code (<code>policy.ts</code>). A rolling 24-hour rule sends many small orders to a person.</li>
       <li>Missing allergen data counts as unknown. Any page can make an order stricter; only the maker or a known grocery or wholesale site can loosen it.</li>
       <li>Approving and editing a mandate need an approver key when one is set (<code>auth.ts</code>). MCP has no approve tool.</li>
-      <li><code>/red-team</code> runs ten attacks against the real checks and reports blocked, allowed or not protected.</li>
+      <li>Unit tests cover the exposure filter, the mandate rules, the approver key and the trusted-source rule.</li>
     </ul>
   </section>
 
@@ -247,33 +245,23 @@
           <li><strong>Aiven:</strong> Postgres with pgvector, Valkey, Kafka, ClickHouse snapshot.</li>
           <li><strong>Oxylabs:</strong> live allergen, label and recall checks, with quotes and URLs.</li>
           <li><strong>Gemma</strong> reads the request, <strong>Gemini</strong> reads it again, code compares.</li>
-          <li><strong>Nemotron</strong> picks products and reads pages and photos. <strong>Featherless</strong> Qwen is the fallback.</li>
+          <li><strong>Nemotron</strong> picks products and reads pages. <strong>Featherless</strong> Qwen is the fallback.</li>
           <li>Models interpret. Code decides.</li>
         </ul>
       </div>
       <div>
-        <svg class="diagram" viewBox="0 0 800 420" role="img" aria-label="Architecture: a buyer agent and a photo or voice intake feed the MCP and REST gateway, which has an exposure filter and an approver key. The mandate policy in code decides. A red team harness attacks the gateway and policy. Models by role (Gemma, Gemini, Nemotron, Qwen) interpret only. The gateway calls the Valio price and availability API and Oxylabs. An approver, a person, approves with a key and a device signature. Signed receipts are checked at verify in the browser. Aiven holds Postgres with pgvector, Valkey, Kafka and a ClickHouse snapshot.">
+        <svg class="diagram" viewBox="0 0 800 420" role="img" aria-label="Architecture: a buyer agent feeds the MCP and REST gateway, which has an exposure filter and an approver key. The mandate policy in code decides. Models by role (Gemma, Gemini, Nemotron, Qwen) interpret only. The gateway calls the Valio price and availability API and Oxylabs. An approver, a person, approves with a key and a device signature. Signed receipts are checked at verify in the browser. Aiven holds Postgres with pgvector, Valkey, Kafka and a ClickHouse snapshot.">
           <defs>
             <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
             </marker>
           </defs>
 
-          <!-- intake -->
-          <rect class="box" x="0" y="10" width="150" height="70" rx="8"/>
-          <text class="t" x="75" y="38" text-anchor="middle">Intake</text>
-          <text class="s" x="75" y="56" text-anchor="middle">photo or voice</text>
-          <text class="s" x="75" y="71" text-anchor="middle">a person taps a line</text>
-
           <!-- models by role, interpret only -->
           <rect class="box soft" x="190" y="10" width="390" height="70" rx="8"/>
           <text class="t" x="385" y="32" text-anchor="middle">Models by role: interpret only</text>
           <text class="s" x="385" y="50" text-anchor="middle">Gemma reads, Gemini second opinion, Qwen fallback</text>
-          <text class="s" x="385" y="66" text-anchor="middle">Nemotron picks products, reads pages and photos</text>
-
-          <!-- red team harness around gateway and policy -->
-          <rect class="harness" x="178" y="98" width="414" height="126" rx="10"/>
-          <text class="s" x="385" y="214" text-anchor="middle">red team harness attacks this</text>
+          <text class="s" x="385" y="66" text-anchor="middle">Nemotron picks products and reads pages</text>
 
           <!-- buyer agent -->
           <rect class="box" x="0" y="108" width="150" height="78" rx="8"/>
@@ -326,7 +314,6 @@
           <text class="s" x="709" y="350" text-anchor="middle">stats snapshot</text>
 
           <!-- arrows -->
-          <line class="arrow" x1="152" y1="45" x2="186" y2="45" marker-end="url(#ah2)"/>
           <line class="arrow" x1="280" y1="106" x2="280" y2="84" marker-end="url(#ah2)"/>
           <line class="arrow" x1="152" y1="140" x2="186" y2="140" marker-end="url(#ah2)"/>
           <line class="arrow" x1="372" y1="140" x2="396" y2="140" marker-end="url(#ah2)"/>
@@ -347,10 +334,10 @@
     <h1>Why Valio should own this door.</h1>
     <ul>
       <li>List price, discount and supplier stay inside Valio. Agents get one fixed, signed price.</li>
-      <li>Valio sets the rules agents work under, and autonomy grows only when a person accepts it.</li>
+      <li>Valio sets the rules agents work under: what they see, what they may decide and what needs a person.</li>
       <li>The back end is protected: shortlist-only pricing, caching, per-buyer rate limits, time limits on every call.</li>
       <li>Buyer and Valio share one decision record and receipts either side can verify.</li>
-      <li>One standard door for any buyer's agent, and an order can start from a photo or a spoken line.</li>
+      <li>One standard door for any buyer's agent.</li>
     </ul>
     <p class="note">Prototype on synthetic data. Orders are stored in our database; they are not yet sent to Valio's order system.</p>
   </section>

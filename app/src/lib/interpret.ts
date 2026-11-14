@@ -17,6 +17,17 @@ export const PurchaseRequestSchema = z.object({
   requiredClaims: z.array(z.enum(CLAIMS)),
 }) satisfies z.ZodType<PurchaseRequest>;
 
+/**
+ * How many lines of the text start with a quantity and a unit ("0,323 kg ...", "2 l ..."). A recipe or a shopping list has
+ * several; a purchase request for one product has at most one. The reader handles one product per request, so a text with
+ * three or more such lines is refused at once with a clear message instead of costing two minutes of model time.
+ */
+export function quantityLineCount(text: string): number {
+  return text.split(/\r?\n/).filter((line) => /^\s*(?:[-*•]\s*)?\d+(?:[.,]\d+)?\s*(?:kg|g|l|dl|cl|ml|kpl|pcs|pc|st)\b/i.test(line)).length;
+}
+
+export const MAX_REQUEST_CHARS = 4000;
+
 /** Today in Helsinki as YYYY-MM-DD plus the weekday, so relative dates like "by Monday" resolve correctly. */
 export function helsinkiToday(): { date: string; weekday: string } {
   const now = new Date();

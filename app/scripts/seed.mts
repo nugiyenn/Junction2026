@@ -299,24 +299,6 @@ await pool.query(
      preferred_offer = EXCLUDED.preferred_offer`
 );
 
-// Earned-autonomy demo buyer: a low auto-approve limit and a synthetic history that earns a raise (scripts/seed-history.mts).
-// DO NOTHING on conflict, so a re-run does not undo a suggestion a person accepted.
-await pool.query(
-  `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
-                         min_delivery_reliability, require_confirmed_stock, max_co2_per_kg, preferred_offer)
-   VALUES ('demo-autonomy', 'Harbour Bistro (demo)', 'Bistro purchasing agent', 200, 5000, '[]', NULL, false, NULL, 'cheapest')
-   ON CONFLICT (id) DO NOTHING`
-);
-
-// The red-team harness attacks the gateway on a mandate of its own, so its orders never touch a buyer's. Created once,
-// never reset: a low auto-approve limit lets a few small orders reach the rolling 24 h rule.
-await pool.query(
-  `INSERT INTO mandates (id, buyer_name, agent_name, auto_approve_limit_eur, max_order_eur, blocked_allergens,
-                         min_delivery_reliability, require_confirmed_stock, max_co2_per_kg, preferred_offer)
-   VALUES ('demo-redteam', 'Red team (harness)', 'Attacking agent', 100, 5000, '[]', NULL, false, NULL, 'cheapest')
-   ON CONFLICT (id) DO NOTHING`
-);
-
 // --- 5. Embeddings (resumable) ----------------------------------------------
 
 // `--no-embed` stops after the tables, products and mandates: use it to apply schema changes without

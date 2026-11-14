@@ -350,21 +350,6 @@ export async function runNemotronStructured<S extends z.ZodType>(
   }
 }
 
-/**
- * Nemotron reading an image (a data URL), validated against `schema`: the vision side of the same model.
- * Same retries and JSON mode as runNemotronStructured; 40 s deadline. `model` is the id the call was sent to.
- */
-export async function runNemotronVision<S extends z.ZodType>(
-  instructions: string,
-  prompt: string,
-  imageUrl: string,
-  schema: S,
-  options: Omit<NemotronOptions, 'imageUrl'> = {}
-): Promise<{ output: z.output<S>; model: string }> {
-  const output = await runNemotronStructured(instructions, prompt, schema, { timeoutMs: 40_000, maxTokens: 1500, ...options, imageUrl });
-  return { output, model: nemotronModelId() };
-}
-
 /** The models the evaluation compares, by id. `requires` lists the env names a model needs before it can be called. */
 export const EVAL_MODELS = [
   { id: 'gemma-4', label: 'Gemma 4 26B', requires: ['GEMINI_API_KEY'], modelId: () => 'gemma-4-26b-a4b-it' },

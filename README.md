@@ -26,9 +26,7 @@ A language model reads the request. Code decides everything else: quantities, pr
 ## Pages
 
 - `/verify`: check an order's signed receipt in the browser.
-- `/red-team`: attack the gateway and see what is blocked and what is not.
-- `/autonomy`: suggested limit changes, earned from people's decisions.
-- Also: buyer agent (with photo order intake), approvals, what agents see, decision record, buyer stats, models.
+- Also: buyer agent, approvals, what agents see, decision record, buyer stats, models.
 
 ## Tech
 
@@ -38,7 +36,7 @@ Aiven Postgres, Valkey, Kafka and ClickHouse, Oxylabs, Gemma, Gemini, Nemotron, 
 
 - REST: `app/public/openapi.json`
 - MCP: `POST /api/mcp`. There is no approve tool: approval stays human.
-- Set `APPROVER_KEY` and approving, editing a mandate and accepting a suggestion need `Authorization: Bearer <key>`.
+- Set `APPROVER_KEY` and approving and editing a mandate need `Authorization: Bearer <key>`.
 
 ## Run it
 

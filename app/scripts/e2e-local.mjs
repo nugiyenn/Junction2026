@@ -106,17 +106,11 @@ async function main() {
 
   // --- New surfaces
   console.log('\nNew features');
-  const autonomy = await http('GET', '/api/autonomy?mandateId=demo-school', undefined, {}, 60_000);
-  log(autonomy.status === 200 && Array.isArray(autonomy.json?.suggestions), 'earned-autonomy suggestions answer', `${(autonomy.json?.suggestions ?? []).length} suggestion(s)`);
-  const redteam = await http('GET', '/api/redteam', undefined, {}, 30_000);
-  log(redteam.status === 200 && (redteam.json?.scenarios ?? []).length >= 9, 'red-team scenarios listed', `${(redteam.json?.scenarios ?? []).length} scenarios`);
-  const gif = await http('POST', '/api/intake', { image: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' }, {}, 30_000);
-  log(gif.status === 400, 'photo intake refuses a non-image type before any model call', `HTTP ${gif.status}`);
   const stats = await http('GET', '/api/stats?mandateId=demo-hotel', undefined, {}, 60_000);
   log(stats.status === 200 && !!stats.json?.source, 'buyer stats answer', `source: ${stats.json?.source}`);
   const catalog = await http('GET', '/api/products/search?q=oat%20drink&limit=3', undefined, {}, 60_000);
   log(catalog.status === 200 && !/"vendorName"|"category"/.test(catalog.text), 'catalog search hides supplier and internal category');
-  for (const page of ['/', '/approvals', '/exposure', '/audit', '/stats', '/autonomy', '/models', '/verify', '/red-team']) {
+  for (const page of ['/', '/approvals', '/exposure', '/audit', '/stats', '/models', '/verify']) {
     const res = await fetch(BASE + page, { signal: AbortSignal.timeout(60_000) });
     log(res.status === 200, `page ${page} loads`, `HTTP ${res.status}`);
   }

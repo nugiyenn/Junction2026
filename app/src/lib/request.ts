@@ -5,7 +5,7 @@ import { getProductsByIds, searchProducts } from '@/lib/catalog';
 import { exposeQuote, sanitizeIssue } from '@/lib/exposure';
 import { withTimeout } from '@/lib/deadline';
 import { HttpError } from '@/lib/http';
-import { compareInterpretations, helsinkiToday, interpretInstructions, PurchaseRequestSchema, weekdayDate } from '@/lib/interpret';
+import { compareInterpretations, helsinkiToday, interpretInstructions, PurchaseRequestSchema, quantityLineCount, weekdayDate } from '@/lib/interpret';
 import { runExtractionModelStructured, runNamedModelStructured, runOpenModelStructured } from '@/lib/llm';
 import { runLiveChecks } from '@/lib/live-checks';
 import { applyPreference, buildOffers } from '@/lib/offers';
@@ -38,6 +38,13 @@ const PICK_BUDGET_MS = 60_000;
  * is the one used. If Gemini does not answer, the request goes on and says so.
  */
 export async function interpretRequest(text: string): Promise<{ request: PurchaseRequest; model: string; check: InterpretationCheck }> {
+  const lines = quantityLineCount(text);
+  if (lines >= 3) {
+    throw new HttpError(
+      422,
+      `This looks like a recipe or list with ${lines} products. A request covers one product at a time: send each line as its own request, for example "20 kg of oat cooking cream by Friday".`
+    );
+  }
   const today = helsinkiToday();
   const instructions = interpretInstructions(today);
   // A weekday in the text is arithmetic, so code settles it for both readings.
@@ -52,7 +59,15 @@ export async function interpretRequest(text: string): Promise<{ request: Purchas
     ),
     runNamedModelStructured(SECOND_READER.id, instructions, text, PurchaseRequestSchema, { timeoutMs: SECOND_READER_TIMEOUT_MS }),
   ]);
-  if (first.status === 'rejected') throw first.reason;
+  if (first.status === 'rejected') {
+    const reason = first.reason;
+    // A model that answered in a shape we cannot use (not JSON, a list, wrong fields) is a failed reading, not a bad request.
+    // Never show the parser's own text: it is raw JSON.
+    if (reason instanceof z.ZodError || reason instanceof SyntaxError) {
+      throw new HttpError(502, 'The models answered in a format we could not read. Try again, or shorten and simplify the request.');
+    }
+    throw reason;
+  }
 
   let request: PurchaseRequest = first.value.output;
   let model = first.value.model;

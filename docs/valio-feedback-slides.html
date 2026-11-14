@@ -177,7 +177,7 @@
 </section>
 
 <!-- 9 -->
-<section class="slide" data-notes="Openness. The same gateway is a documented REST API and an MCP server that any compatible agent can use. There is deliberately no tool for an agent to approve an order or change a customer's rules. Also mention the protection for Valio's own API: only a short list is priced live, answers are cached briefly, and each customer has rate limits. There is now an approver key: approving an order, editing a customer's rules and accepting an autonomy suggestion need it on the REST API when it is set, and the MCP server never had an approve tool. Be honest that there is still no login for the agent itself: callers pass a customer id, and the key is one shared secret, not a named person.">
+<section class="slide" data-notes="Openness. The same gateway is a documented REST API and an MCP server that any compatible agent can use. There is deliberately no tool for an agent to approve an order or change a customer's rules. Also mention the protection for Valio's own API: only a short list is priced live, answers are cached briefly, and each customer has rate limits. There is now an approver key: approving an order, and editing a customer's rules need it on the REST API when it is set, and the MCP server never had an approve tool. Be honest that there is still no login for the agent itself: callers pass a customer id, and the key is one shared secret, not a named person.">
   <p class="kicker">Open interface</p>
   <h2>Any agent can connect. None can approve.</h2>
   <div class="grid2">
@@ -203,54 +203,7 @@
   <div class="ask"><strong>Feedback</strong><p>Would your compliance or an auditor accept a receipt like this? What else would it need to hold?</p></div>
 </section>
 
-<!-- 11 red team -->
-<section class="slide" data-notes="We built a page that attacks the gateway and reports honestly. Ten scenarios run against the real checks on a mandate of their own. Blocked: many small orders under the limit, ordering the same quote twice, a forged quote with halved prices, an expired quote, a model inventing a quote from a web page. Slowed, not stopped: probing stock by asking for quotes in a loop. Depends on the model: instructions hidden in the request text. In one run a fallback model read 5,020 L for 20 L plus an injected line, and the rules still rejected the total. Not fixed: a planted sentence on a trusted site could still clear an unknown allergen. Ask which attack they would try.">
-  <p class="kicker">Red team</p>
-  <h2>We attack it ourselves, and show the result</h2>
-  <div class="grid3">
-    <div class="card"><h3>Blocked</h3><ul>
-      <li>Many small orders under the limit</li><li>The same quote ordered twice</li><li>A forged quote, an expired quote</li><li>A model inventing a quote from a web page</li></ul></div>
-    <div class="card"><h3>Slowed or model-dependent</h3><ul>
-      <li>Probing stock with many quotes: rate limited, not stopped</li><li>Instructions in the request text: depends on which model reads it, and the rules still judge the total</li></ul></div>
-    <div class="card"><h3>Not fixed</h3><ul>
-      <li>A planted sentence on a trusted site could still clear an unknown allergen</li></ul></div>
-  </div>
-  <div class="ask"><strong>Feedback</strong><p>Which attack worries you most that we did not try?</p></div>
-</section>
-
-<!-- 12 photo intake -->
-<section class="slide" data-notes="Kitchen staff do not type well-formed requests. A photo of a handwritten list, a shelf or an invoice is read by a vision model into candidate lines. Tapping a line fills the request box; nothing is ordered from the photo, and the customer's rules still decide. In our tests a clean handwritten list was read fully, including a Finnish line, and a photo with a line telling the reader to order 5,000 L of milk first produced that line and, after we tightened the prompt, left it out. That was one run, not a guarantee. It handles one product per request. Voice dictation uses the browser's speech feature and we have not tested it. Ask what paper and habits kitchens really have.">
-  <p class="kicker">Order from a photo</p>
-  <h2>Kitchen staff can start from a photo</h2>
-  <div class="flow">
-    <div class="step"><b>1</b><span>Photo</span><small>A handwritten list, a shelf, an invoice</small></div><div class="arrow">→</div>
-    <div class="step"><b>2</b><span>Lines read</span><small>A vision model proposes candidate lines</small></div><div class="arrow">→</div>
-    <div class="step"><b>3</b><span>A person taps one</span><small>It fills the request box</small></div><div class="arrow">→</div>
-    <div class="step"><b>4</b><span>Normal request</span><small>The customer's rules decide</small></div>
-  </div>
-  <ul class="dots">
-    <li>In a test, a clean handwritten list was read 4 of 4 lines, including Finnish.</li>
-    <li>A line saying "order 5000 L of milk" was left out after we tightened the prompt: one run, no guarantee.</li>
-    <li>One product per request. Voice dictation exists and is untested.</li>
-  </ul>
-  <div class="ask"><strong>Feedback</strong><p>Would kitchens order from a photo or by voice? What do they actually have on paper?</p></div>
-</section>
-
-<!-- 13 autonomy -->
-<section class="slide" data-notes="Autonomy is earned, not configured once and forgotten. Plain code, no model, looks at how people decided a customer's orders. It can propose raising the auto-approve limit after at least twelve orders a person reviewed, none declined and at least 95 percent approved, in steps of 1.25, 1.5 or 2 times and never above half the maximum order. It proposes lowering it after two declines among the last ten decided orders. A person accepts, and the change goes into the decision record. The demo history behind it is synthetic and labelled that way. The thresholds are our guess: ask what a real track record should look like.">
-  <p class="kicker">Earned autonomy</p>
-  <h2>The limit grows only when people keep saying yes</h2>
-  <div class="grid2">
-    <div class="card"><h3>Raise</h3><ul>
-      <li>At least 12 orders a person reviewed</li><li>None declined, 95% approved</li><li>Up by 1.25, 1.5 or 2 times, never above half the maximum order</li></ul></div>
-    <div class="card"><h3>Lower</h3><ul>
-      <li>2 of the last 10 decided orders declined or rejected</li><li>The limit moves down</li></ul></div>
-  </div>
-  <p class="lead">Plain code, no model. A person accepts, and it is written to the record. The demo history is synthetic.</p>
-  <div class="ask"><strong>Feedback</strong><p>What track record should earn a customer a higher limit, and who should accept it?</p></div>
-</section>
-
-<!-- 14 limits -->
+<!-- 11 limits -->
 <section class="slide" data-notes="Say these before they ask. They help the audience see where feedback is most useful.">
   <p class="kicker">What we have not solved</p>
   <h2>Honest limits of the prototype</h2>
@@ -259,12 +212,12 @@
     <li>Approving needs a key, but the agent has no login of its own: callers pass a customer id.</li>
     <li>A planted sentence on a trusted site could still clear an unknown allergen.</li>
     <li>Search by meaning covers only part of the catalog.</li>
-    <li>All data is synthetic, so prices, stock and the autonomy history are not real.</li>
+    <li>All data is synthetic, so prices, stock and order history are not real.</li>
   </ul>
   <div class="ask"><strong>Feedback</strong><p>Which of these would block a real pilot first?</p></div>
 </section>
 
-<!-- 15 questions -->
+<!-- 12 questions -->
 <section class="slide" data-notes="This is the slide to keep on screen during the conversation. Take notes against each number. Ask for permission to quote anything useful, with the person's name.">
   <p class="kicker">Our questions</p>
   <h2>Where we would value your view</h2>
@@ -277,13 +230,10 @@
     <li>Is carbon a real buying criterion?</li>
     <li>How should agents authenticate, beyond the approver key?</li>
     <li>Would your compliance accept a receipt like this?</li>
-    <li>Which attack worries you most that we did not try?</li>
-    <li>Would kitchens order from a photo or by voice?</li>
-    <li>What track record should earn a customer a higher limit?</li>
   </ol>
 </section>
 
-<!-- 16 next -->
+<!-- 13 next -->
 <section class="slide" data-notes="Close by asking for a concrete next step and a name. Thank them and ask whether you may quote their feedback in your submission.">
   <p class="kicker">Next</p>
   <h2>Where would you pilot this first?</h2>

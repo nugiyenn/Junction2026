@@ -69,8 +69,7 @@ export async function getMandate(id: string): Promise<Mandate> {
 }
 
 export async function listMandates(): Promise<Mandate[]> {
-  // demo-redteam belongs to the red-team harness, not to a buyer: it stays out of the buyer pickers.
-  const { rows } = await getPool().query<MandateRow>(`SELECT * FROM mandates WHERE id <> 'demo-redteam' ORDER BY id`);
+  const { rows } = await getPool().query<MandateRow>(`SELECT * FROM mandates ORDER BY id`);
   return rows.map(toMandate);
 }
 

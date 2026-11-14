@@ -14,10 +14,8 @@ const ICONS: Record<string, string[]> = {
   '/exposure': ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
   '/audit': ['M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z', 'M14 3v6h6', 'M8 13h8', 'M8 17h8'],
   '/stats': ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M22 20H2'],
-  '/autonomy': ['M4 21v-7', 'M4 10V3', 'M12 21v-9', 'M12 8V3', 'M20 21v-5', 'M20 12V3', 'M1 14h6', 'M9 8h6', 'M17 16h6'],
   '/models': ['M9 3v2', 'M15 3v2', 'M9 19v2', 'M15 19v2', 'M3 9h2', 'M3 15h2', 'M19 9h2', 'M19 15h2', 'M7 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z', 'M10 10h4v4h-4z'],
   '/verify': ['M12 2 4 5v6c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V5l-8-3z', 'M9 12l2 2 4-4'],
-  '/red-team': ['M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0', 'M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'M12 2v4', 'M12 18v4', 'M2 12h4', 'M18 12h4'],
 };
 
 const LINKS = [
@@ -26,10 +24,8 @@ const LINKS = [
   { href: '/exposure', label: 'What agents see' },
   { href: '/audit', label: 'Decision record' },
   { href: '/stats', label: 'Buyer stats' },
-  { href: '/autonomy', label: 'Autonomy' },
   { href: '/models', label: 'Models' },
   { href: '/verify', label: 'Verify' },
-  { href: '/red-team', label: 'Red team' },
 ];
 
 function NavIcon({ href }: { href: string }) {
