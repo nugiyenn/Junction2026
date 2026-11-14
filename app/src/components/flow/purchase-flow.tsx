@@ -19,6 +19,8 @@ import type {
   PolicyDecision,
   RequestResult,
 } from '@/types';
+import { ReceiptLink } from '@/components/verify/receipt-link';
+import { signedDecision } from '@/components/verify/device-key';
 import { call, clock, eur } from './api';
 import { Intake } from './intake';
 import { MandatePanel } from './mandate-panel';
@@ -298,7 +300,8 @@ export function PurchaseFlow() {
 
   const decide = (decision: 'approve' | 'decline') =>
     run(decision, async () => {
-      setOrder((await call<{ order: ExposedOrder }>(`/api/orders/${order!.id}/decision`, { decision, decidedBy: approver })).order);
+      const body = { decision, decidedBy: approver, ...(await signedDecision(order!.id, decision, approver)) };
+      setOrder((await call<{ order: ExposedOrder }>(`/api/orders/${order!.id}/decision`, body)).order);
     });
 
   async function resetDemo() {
@@ -603,6 +606,7 @@ export function PurchaseFlow() {
                         {order.status === 'confirmed' ? 'Approved' : 'Declined'} by {order.decidedBy} at {clock(order.decidedAt!)}
                       </p>
                     )}
+                    {order.status !== 'pending_approval' && <ReceiptLink id={order.id} />}
                     {order.status === 'pending_approval' && (
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         <Input className="h-10 w-44 bg-card" value={approver} onChange={(e) => setApprover(e.target.value)} aria-label="Approver name" />

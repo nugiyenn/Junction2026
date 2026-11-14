@@ -184,6 +184,11 @@ await pool.query(`
     decision_note text
   );
 
+  -- the approver's device signature over a decision (see receipt-verify.ts); null when the client did not sign
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS decision_payload jsonb;
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS decision_signature text;
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS decision_public_key jsonb;
+
   CREATE TABLE IF NOT EXISTS verifications (
     product_id text PRIMARY KEY REFERENCES products(id),
     checked_at timestamptz NOT NULL DEFAULT now(),

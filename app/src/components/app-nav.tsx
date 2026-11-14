@@ -15,6 +15,7 @@ const LINKS = [
   { href: '/stats', label: 'Buyer stats' },
   { href: '/autonomy', label: 'Autonomy' },
   { href: '/models', label: 'Models' },
+  { href: '/verify', label: 'Verify' },
 ];
 
 /** Sidebar on wide screens, a scrolling bar on phones. The Approvals link shows how many orders are waiting. */

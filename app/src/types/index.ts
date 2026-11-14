@@ -710,6 +710,7 @@ export interface InterpretationCheck {
 }
 // --- intake ---
 
+<<<<<<< HEAD
 /** One thing to buy that the vision model read off a photo. Nothing is quoted or ordered from it: a person taps it to use it. */
 export interface IntakeLine {
   /** The line as written, e.g. "20 kg granola, no nuts". */
@@ -808,4 +809,94 @@ export interface AutonomyAcceptRequest {
 export interface AutonomyAcceptResponse {
   mandate: Mandate;
   suggestion: AutonomySuggestion;
+=======
+
+// --- receipts ---
+
+/** A public key as WebCrypto and JWKS exchange it. Only the fields the checks use. */
+export interface PublicJwk {
+  kty: string;
+  crv: string;
+  x: string;
+  y?: string;
+  kid?: string;
+}
+
+/** What a person's device signed when it approved or declined an order. A device key is not an identity. */
+export interface ApproverSignature {
+  alg: 'ES256';
+  payload: {
+    orderId: string;
+    decision: 'approve' | 'decline';
+    decidedBy: string;
+    note: string | null;
+    /** The device's clock, not Valio's. */
+    signedAt: string;
+  };
+  /** Base64url, 64 bytes (r then s), as WebCrypto produces it. */
+  value: string;
+  publicKey: PublicJwk;
+}
+
+/** An audit event as exported: every field its hash covers. */
+export interface ReceiptAuditEvent {
+  id: string;
+  at: string;
+  actor: AuditActor;
+  action: AuditAction;
+  mandateId: string | null;
+  quoteId: string | null;
+  orderId: string | null;
+  summary: string;
+  data: Record<string, unknown>;
+  prevHash: string | null;
+  hash: string | null;
+}
+
+/** An event of someone else's that sits between two events of this order in the chain: hash links only, no content. */
+export interface ReceiptAuditStub {
+  id: string;
+  prevHash: string | null;
+  hash: string | null;
+  omitted: true;
+}
+
+export interface ReceiptBundle {
+  version: 1;
+  exportedAt: string;
+  order: ExposedOrder;
+  quote: ExposedQuote;
+  mandate: {
+    /** The fields that decide what the agent may do, as they are at `capturedAt`: mandates keep no history. */
+    snapshot: Pick<
+      Mandate,
+      'id' | 'buyerName' | 'agentName' | 'autoApproveLimitEur' | 'maxOrderEur' | 'blockedAllergens' | 'minDeliveryReliability' | 'requireConfirmedStock' | 'maxCo2PerKg' | 'preferredOffer'
+    >;
+    /** SHA-256 (hex) of the canonical JSON of `snapshot`. */
+    hash: string;
+    capturedAt: string;
+  };
+  policy: { outcome: PolicyOutcome | null; reasons: string[] };
+  /** The human decision, if there was one. `approverSignature` is null when the client did not sign it. */
+  decision: { status: 'approved' | 'declined'; decidedBy: string; decidedAt: string; note: string | null; approverSignature: ApproverSignature | null } | null;
+  audit: {
+    /** Events of this quote and order, oldest first, with hash-only stubs for events in between when `linked` is true. */
+    events: (ReceiptAuditEvent | ReceiptAuditStub)[];
+    /** True when no event between the first and last of this order is missing from `events`, even as a stub. */
+    linked: boolean;
+    /** Newest event in the whole chain when the receipt was made. */
+    head: { id: string; hash: string | null } | null;
+  };
+  /** Valio's Ed25519 signature over the canonical JSON of this bundle without `signature`. */
+  signature: { alg: 'EdDSA'; keyId: string; value: string };
+}
+
+export interface ReceiptCheck {
+  id: 'bundle' | 'quote' | 'match' | 'mandate' | 'audit' | 'approver';
+  /** Two to four words. */
+  label: string;
+  /** `skip` is neither a pass nor a failure: there was nothing to check (no human decision, or it was not signed). */
+  status: 'pass' | 'fail' | 'skip';
+  detail: string;
+>>>>>>> night-d
 }
