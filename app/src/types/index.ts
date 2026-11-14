@@ -443,3 +443,21 @@ export interface AuditEvent {
 export interface ApiError {
   error: string;
 }
+
+// --- valkey ---
+
+/** One backing service as GET /api/health sees it. */
+export interface ServiceHealth {
+  name: 'postgres' | 'valkey';
+  configured: boolean;
+  ok: boolean;
+  latencyMs: number | null;
+  /** What is happening, in a sentence: the error, or what is off because the service is missing. */
+  detail: string;
+}
+
+export interface HealthReport {
+  services: ServiceHealth[];
+  /** Valio API calls saved (hits) and made (misses) by the Valkey cache. Null when Valkey is off or failing. */
+  cache: { hits: number; misses: number } | null;
+}

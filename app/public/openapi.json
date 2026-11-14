@@ -125,6 +125,26 @@
                   "$ref": "#/components/schemas/RequestResult"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
             }
           },
           "400": {
@@ -149,6 +169,42 @@
           },
           "409": {
             "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached (6 per 60 s per mandate). Wait `Retry-After` seconds. Limiting is off when the gateway has no Valkey.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -207,6 +263,26 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
             }
           },
           "400": {
@@ -231,6 +307,42 @@
           },
           "409": {
             "description": "Conflict, for example a quote that cannot be ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached (30 per 60 s per mandate). Wait `Retry-After` seconds. Limiting is off when the gateway has no Valkey.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -410,6 +522,32 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this is the stored response to an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -433,7 +571,53 @@
             }
           },
           "409": {
-            "description": "Conflict, for example a quote that cannot be ordered",
+            "description": "Conflict, for example a quote that cannot be ordered or already ordered, or another request with the same Idempotency-Key is still being processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit reached (20 per 60 s per mandate). Wait `Retry-After` seconds. Limiting is off when the gateway has no Valkey.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Calls allowed per window for this mandate.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Calls left in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Seconds until the window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The Idempotency-Key was already used with a different quote",
             "content": {
               "application/json": {
                 "schema": {
@@ -460,7 +644,20 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "description": "Makes retries safe. The first successful response is kept for 24 hours and returned again, with `Idempotent-Replayed: true`, for any retry with the same key and quote (instead of a 409 for an already ordered quote). Needs Valkey; ignored without it."
+          }
+        ]
       },
       "get": {
         "summary": "List orders",
@@ -1170,6 +1367,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Jwks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Backing service health and cache statistics",
+        "description": "Whether Postgres and Valkey are configured and answering. Valkey is optional: without it, caching, rate limiting and idempotency are off and everything else works. `cache` counts Valio API calls saved (hits) and made (misses).",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReport"
                 }
               }
             }
@@ -2419,6 +2637,73 @@
           "reasons"
         ],
         "description": "What the buyer's mandate decides about an order."
+      },
+      "ServiceHealth": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "postgres",
+              "valkey"
+            ]
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "configured",
+          "ok",
+          "latencyMs",
+          "detail"
+        ]
+      },
+      "HealthReport": {
+        "type": "object",
+        "properties": {
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceHealth"
+            }
+          },
+          "cache": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "hits": {
+                "type": "integer"
+              },
+              "misses": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "hits",
+              "misses"
+            ]
+          }
+        },
+        "required": [
+          "services",
+          "cache"
+        ]
       }
     }
   }
