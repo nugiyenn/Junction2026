@@ -26,6 +26,8 @@ import { call, clock, eur } from './api';
 import { MandatePanel } from './mandate-panel';
 import { RecurringOrders } from './recurring-orders';
 import { LiveChecksSummary, VerifyCheck } from './verify-check';
+import { Spinner, TextHint, WaitPanel } from './feedback';
+import { checkRequestText } from '@/lib/text-check';
 
 const SCENARIOS = [
   {
@@ -319,6 +321,7 @@ export function PurchaseFlow() {
   const selectedOffer = result?.offers.find((o) => o.id === selectedOfferId) ?? null;
   const done = !result ? 0 : order ? 5 : quote ? 4 : 3;
   const anyBusy = busy !== null;
+  const check = checkRequestText(text);
 
   return (
     <Page
@@ -382,9 +385,13 @@ export function PurchaseFlow() {
             setText(e.target.value);
             setActiveScenario(null);
           }}
+          aria-describedby="request-check"
+          aria-invalid={check.level === 'block'}
         />
+        <TextHint check={check} id="request-check" />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Button onClick={() => submitRequest()} disabled={anyBusy || text.trim().length < 3} className="h-11 px-5">
+          <Button onClick={() => submitRequest()} disabled={anyBusy || text.trim().length < 3 || check.level === 'block'} className="h-11 gap-2 px-5">
+            {busy === 'request' && <Spinner />}
             {busy === 'request' ? 'Interpreting and pricing…' : 'Send request'}
           </Button>
           {result && (
@@ -402,6 +409,18 @@ export function PurchaseFlow() {
             </>
           )}
         </div>
+        {busy === 'request' && (
+          <WaitPanel
+            title="Working on your request"
+            steps={[
+              'Gemma and Gemini read your request.',
+              'The catalog is searched and Nemotron picks matching products.',
+              'Valio prices them and confirms stock.',
+              'Oxylabs checks allergen and label claims on the live web.',
+            ]}
+            note="It usually takes 20 to 40 seconds."
+          />
+        )}
         {result && (
           <details className="text-xs text-muted-foreground">
             <summary className="flex min-h-9 cursor-pointer flex-wrap items-center gap-2 py-1">

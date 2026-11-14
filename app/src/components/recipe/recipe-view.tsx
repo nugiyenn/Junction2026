@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { call, clock, eur } from '@/components/flow/api';
+import { Spinner, TextHint, WaitPanel } from '@/components/flow/feedback';
 import { Page, Panel, Pill, type Tone } from '@/components/page';
+import { checkRecipeText } from '@/lib/text-check';
 import { ConfirmationLink } from '@/components/verify/confirmation-link';
 import { ReceiptLink } from '@/components/verify/receipt-link';
 import type { ExposedOrder, ExposedQuote, Mandate, PolicyDecision, RecipeLineMatch, RecipeMatchStatus, RecipeProduct, RecipeResult, RecipeUnit } from '@/types';
@@ -235,6 +237,7 @@ export function RecipeView() {
   }
 
   const anyBusy = busy !== null;
+  const check = checkRecipeText(text);
   const overAuto = mandate !== null && selection.total > mandate.autoApproveLimitEur;
   const overMax = mandate !== null && selection.total > mandate.maxOrderEur;
 
@@ -291,7 +294,9 @@ export function RecipeView() {
           placeholder={'20 kg mozzarella\n10 kg tomato sauce\npizza dough 50 pcs'}
           disabled={locked}
           onChange={(e) => setText(e.target.value)}
+          aria-describedby="recipe-check"
         />
+        <TextHint check={check} id="recipe-check" />
 
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
           <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
@@ -318,12 +323,23 @@ export function RecipeView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button className="h-11 px-5" onClick={matchProducts} disabled={anyBusy || locked || text.trim().length < 3 || !factorOk}>
+          <Button className="h-11 gap-2 px-5" onClick={matchProducts} disabled={anyBusy || locked || text.trim().length < 3 || !factorOk || check.level === 'block'}>
+            {busy === 'match' && <Spinner />}
             {busy === 'match' ? 'Matching products…' : 'Match products'}
           </Button>
-          {busy === 'match' && <span className="text-xs text-muted-foreground">This can take up to a minute.</span>}
           {!factorOk && <span className="text-xs text-destructive">The portions factor must be from 0.01 to 1000.</span>}
         </div>
+        {busy === 'match' && (
+          <WaitPanel
+            title="Matching your list"
+            steps={[
+              'Code reads each line and its amount.',
+              'Each line is searched in the catalog.',
+              'Valio prices the best matches and confirms stock.',
+            ]}
+            note="This can take up to a minute for a long list."
+          />
+        )}
       </Panel>
 
       {result && (
