@@ -18,7 +18,7 @@ const barlow = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Agent order desk | Valio Aimo",
+  title: "Valio Connect",
   description: "How a buyer's purchasing agent orders from Valio Aimo within its mandate",
 };
 
